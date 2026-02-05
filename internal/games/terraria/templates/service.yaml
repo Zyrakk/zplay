@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{.Name}}-service
+  namespace: zplay-{{.Name}}
+  labels:
+    app: zplay
+    game: {{.Game}}
+    server: {{.Name}}
+spec:
+  type: ClusterIP
+  ports:
+    - name: game
+      port: 7777
+      targetPort: 7777
+      protocol: TCP
+  selector:
+    app: zplay
+    server: {{.Name}}

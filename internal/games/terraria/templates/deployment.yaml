@@ -1,0 +1,74 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{.Name}}-terraria
+  namespace: zplay-{{.Name}}
+  labels:
+    app: zplay
+    game: {{.Game}}
+    server: {{.Name}}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: zplay
+      server: {{.Name}}
+  template:
+    metadata:
+      labels:
+        app: zplay
+        game: {{.Game}}
+        server: {{.Name}}
+    spec:
+      securityContext:
+        fsGroup: 3000
+      {{- if .NodeSelector}}
+      nodeSelector:
+        kubernetes.io/hostname: {{.NodeSelector}}
+      {{- end}}
+      containers:
+        - name: terraria
+          image: passivelemon/terraria-docker:terraria-latest
+          stdin: true
+          tty: true
+          volumeMounts:
+            - name: data
+              mountPath: /opt/terraria/config
+          ports:
+            - name: game
+              containerPort: 7777
+              protocol: TCP
+          env:
+            - name: WORLD_SIZE
+              value: "{{.WorldSizeNum}}"
+            - name: MAX_PLAYERS
+              value: "{{.MaxPlayers}}"
+            - name: DIFFICULTY
+              value: "{{if .Difficulty}}{{.Difficulty}}{{else}}1{{end}}"
+            {{- if .Password}}
+            - name: PASSWORD
+              value: "{{.Password}}"
+            {{- end}}
+          resources:
+            requests:
+              memory: {{.Memory}}
+              cpu: "500m"
+            limits:
+              memory: {{.MemoryLimit}}
+              cpu: "2"
+          livenessProbe:
+            tcpSocket:
+              port: 7777
+            initialDelaySeconds: 120
+            periodSeconds: 30
+            failureThreshold: 3
+          readinessProbe:
+            tcpSocket:
+              port: 7777
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            failureThreshold: 3
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{.Name}}-pvc
