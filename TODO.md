@@ -1,163 +1,77 @@
 # ZPlay - TODO & Roadmap
 
-## Phase 1: Core Terraria (Current)
+## Infraestructura ZCloud
 
-### ✅ Completed
-- [x] Project structure
-- [x] Basic CLI with bubbletea
-- [x] Config management
-- [x] K8s client wrapper
-- [x] Games interface (extensible)
-- [x] Terraria implementation
-- [x] Deploy command
-- [x] List command
-- [x] Delete command
-- [x] Console command
-- [x] Logs command
-- [x] Server state persistence
+### Nodos disponibles
+| Nodo | RAM | Uso recomendado | Notas |
+|------|-----|-----------------|-------|
+| **oracle1** | 24GB | Minecraft, Terraria con mods | ARM64, 5TB en /mnt/das |
+| **oracle2** | 24GB | Minecraft, Terraria con mods | ARM64, 5TB en /mnt/das |
+| **raspberry** | 8GB | Terraria vanilla (4GB max) | ARM64, 4TB en /mnt/local |
+| **n150** | 16GB | ❌ No usar | Control plane, Wazuh, VictoriaMetrics |
 
-### 🔧 To Fix/Improve
+### Storage Classes
+| StorageClass | Capacidad | Uso |
+|--------------|-----------|-----|
+| `nfs-shared` | 5TB LVM | **Servers (worlds)** - HA, accesible desde cualquier nodo |
+| `nfs-nvme` | 500GB | ❌ Reservado para VictoriaMetrics, Wazuh (alto I/O) |
+| `local-path` | Variable | ❌ No usar para game servers |
 
-#### High Priority
-- [ ] **Test compilation** - Run `go mod tidy` and fix any import issues
-- [ ] **Traefik entrypoints** - Document/automate entrypoint creation
-  - Currently requires manual Traefik config per port
-  - Options: 
-    - Use NodePort instead of IngressRouteTCP
-    - Create a port range in Traefik config
-    - Use a single high port range (7770-7780)
-- [ ] **Password handling** - Use Kubernetes Secrets instead of env vars
+### Backups
+- **Destino**: `/mnt/das` en oracle1 u oracle2
+- **Razón**: Separado del storage principal, si nfs-shared falla las backups están a salvo
+
+### Puertos asignados
+| Puerto | Juego | Server |
+|--------|-------|--------|
+| 7777 | Terraria | Server 1 (vanilla) |
+| 7778 | Terraria | Server 2 (mods) |
+| 25565 | Minecraft | Server 1 |
+| 25566 | Minecraft | Server 2 |
+
+**Dominio**: `play.zyrak.cloud`
+
+---
+
+## Phase 1: Core Terraria
+
+### ✅ Completado
+- [x] Estructura del proyecto
+- [x] CLI básico con bubbletea
+- [x] Gestión de configuración
+- [x] Cliente K8s wrapper
+- [x] Interface de juegos (extensible)
+- [x] Implementación Terraria
+- [x] Comando deploy
+- [x] Comando list
+- [x] Comando delete
+- [x] Comando console
+- [x] Comando logs
+- [x] Persistencia de estado de servers
+
+### 🔧 Por hacer (Prioridad Alta)
+
+#### Compilación y testing
+- [ ] Ejecutar `go mod tidy` y arreglar imports
+- [ ] Compilar y probar localmente
+- [ ] Test básico de deploy en ZCloud
+
+#### Actualizar templates con tu infra
+- [ ] Cambiar storageClass a `nfs-shared` en `volume.yaml`
   ```yaml
-  # Create secret template
-  apiVersion: v1
-  kind: Secret
-  metadata:
-    name: {{.Name}}-secret
-  stringData:
-    password: {{.Password}}
+  storageClassName: nfs-shared
   ```
-- [ ] **Error handling** - Better error messages for common failures
-  - Cluster not reachable
-  - Namespace already exists
-  - Port already in use
-
-#### Medium Priority
-- [ ] **Validation improvements**
-  - Check if port is already in use before deploy
-  - Validate memory format (must end in Gi/Mi)
-  - Check node selector exists
-- [ ] **Server start/stop** - Scale deployment to 0/1 without deleting
-  ```go
-  func (c *Client) ScaleDeployment(namespace, deployment string, replicas int) error
+- [ ] Añadir nodeSelector por defecto a `deployment.yaml`
+  ```yaml
+  nodeSelector:
+    kubernetes.io/hostname: oracle1  # o oracle2
   ```
-- [ ] **Status command** - More detailed server info
-  - Pod events
-  - Resource usage
-  - Uptime
-- [ ] **Backup/Restore** - Save world data
-  - `kubectl cp` to local
-  - Store in ~/.zplay/backups/
+- [ ] Hacer nodeSelector configurable en deploy
 
-#### Low Priority
-- [ ] **Non-interactive mode** - CLI flags for scripting
-  ```bash
-  zplay deploy --game terraria --name survival --memory 4Gi --world-size large
-  zplay delete survival --yes
-  zplay list --json
-  ```
-- [ ] **Server restart** - Quick restart without full redeploy
-- [ ] **Config edit** - Change server settings after deploy (memory, players)
-
----
-
-## Phase 2: Terraria Polish
-
-### Features
-- [ ] **Difficulty selection** - Easy/Normal/Expert/Master/Journey
-- [ ] **World seed** - Custom seed support
-- [ ] **Auto-backup** - CronJob for periodic backups
-- [ ] **TShock support** - Alternative image with TShock server
-- [ ] **Mods support** - tModLoader image option
-
-### Monitoring
-- [ ] **Basic metrics** - CPU/Memory from kubectl top
-- [ ] **Health status** - More detailed pod health info
-- [ ] **Player count** - Parse logs for connected players (if possible)
-
-### UX
-- [ ] **Colors/themes** - Customizable CLI colors
-- [ ] **Progress bars** - Show deployment progress
-- [ ] **Notifications** - Optional desktop notifications when server ready
-
----
-
-## Phase 3: Minecraft
-
-### Implementation
-- [ ] **Minecraft game module** - `internal/games/minecraft/`
-- [ ] **Helm integration** - Use itzg/minecraft-server-charts
-  - OR create own templates (simpler, more control)
-- [ ] **Server types**
-  - Paper (default, optimized)
-  - Fabric (mods)
-  - Forge (mods)
-  - Vanilla
-- [ ] **Version selection** - List available versions
-- [ ] **RCON support** - Remote console via RCON
-- [ ] **Ops management** - Add/remove operators
-
-### Minecraft-Specific Features
-- [ ] **Whitelist management** - Add/remove players
-- [ ] **World download** - Download world to local
-- [ ] **Plugin/Mod management** - For Paper/Fabric/Forge
-- [ ] **Server properties** - Edit server.properties via CLI
-
----
-
-## Phase 4: Advanced Features
-
-### Multi-Game Support
-- [ ] **Factorio**
-- [ ] **Valheim**
-- [ ] **Vintage Story** (ya tienes en k3s-gameservers)
-- [ ] **Satisfactory**
-- [ ] **7 Days to Die**
-
-### Infrastructure
-- [ ] **Resource quotas** - Limit total resources per game
-- [ ] **Scheduled servers** - Auto start/stop at certain times
-- [ ] **Multi-cluster** - Support multiple k8s clusters
-- [ ] **Web UI** - Optional web dashboard (future, maybe)
-
-### Observability
-- [ ] **VictoriaMetrics integration** - Push metrics
-- [ ] **Grafana dashboards** - Pre-built dashboards
-- [ ] **Alerting** - Notifications when server down
-
----
-
-## Technical Debt
-
-### Code Quality
-- [ ] **Unit tests** - Test game validation, config, etc.
-- [ ] **Integration tests** - Test against kind/k3d cluster
-- [ ] **CI/CD** - GitHub Actions for build/test/release
-- [ ] **Documentation** - GoDoc comments
-
-### Refactoring
-- [ ] **Better template system** - Consider using Helm charts internally
-- [ ] **Plugin system** - Allow external game definitions
-- [ ] **Config validation** - JSON Schema for config files
-
----
-
-## Traefik Port Configuration
-
-### Option 1: Static Ports (Simple)
-Add to k3s Traefik HelmChartConfig:
+#### Configurar Traefik
+Añadir al HelmChartConfig de Traefik (`/var/lib/rancher/k3s/server/manifests/traefik-config.yaml`):
 
 ```yaml
-# /var/lib/rancher/k3s/server/manifests/traefik-config.yaml
 apiVersion: helm.cattle.io/v1
 kind: HelmChartConfig
 metadata:
@@ -166,71 +80,424 @@ metadata:
 spec:
   valuesContent: |-
     ports:
-      zplay-7777:
+      # Terraria
+      terraria1:
         port: 7777
-        expose: true
+        expose:
+          default: true
         exposedPort: 7777
         protocol: TCP
-      zplay-7778:
+      terraria2:
         port: 7778
-        expose: true
+        expose:
+          default: true
         exposedPort: 7778
         protocol: TCP
-      zplay-25565:
+      # Minecraft (futuro)
+      minecraft1:
         port: 25565
-        expose: true
+        expose:
+          default: true
         exposedPort: 25565
+        protocol: TCP
+      minecraft2:
+        port: 25566
+        expose:
+          default: true
+        exposedPort: 25566
         protocol: TCP
 ```
 
-### Option 2: NodePort (No Traefik config needed)
-Change service template to use NodePort:
-
-```yaml
-apiVersion: v1
-kind: Service
-spec:
-  type: NodePort
-  ports:
-    - port: 7777
-      nodePort: {{.Port}}
+Después aplicar:
+```bash
+# k3s recarga automáticamente, pero si no:
+sudo systemctl restart k3s
 ```
 
-**Pros**: No Traefik config needed
-**Cons**: Port range limited to 30000-32767 by default
+#### Actualizar template de ingress
+Cambiar `ingress.yaml` para usar los entrypoints fijos:
+```yaml
+spec:
+  entryPoints:
+    - terraria1  # o terraria2 según el puerto
+```
 
-### Option 3: LoadBalancer with MetalLB
-If you have MetalLB installed, use LoadBalancer type.
+O mejor, mapear puerto a entrypoint en el código:
+```go
+func portToEntrypoint(game string, port int) string {
+    switch game {
+    case "terraria":
+        if port == 7777 { return "terraria1" }
+        if port == 7778 { return "terraria2" }
+    case "minecraft":
+        if port == 25565 { return "minecraft1" }
+        if port == 25566 { return "minecraft2" }
+    }
+    return fmt.Sprintf("zplay-%d", port)
+}
+```
+
+### 🔧 Por hacer (Prioridad Media)
+
+#### Selección de nodo en deploy
+Añadir al menú de deploy:
+```
+Select node:
+  1) oracle1 (24GB RAM) - recommended
+  2) oracle2 (24GB RAM)
+  3) raspberry (8GB RAM) - light servers only
+```
+
+Validar que Terraria con mods no se despliegue en raspberry (4GB max).
+
+#### Secrets para passwords
+Crear template `secret.yaml`:
+```yaml
+{{- if .Password}}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{.Name}}-secret
+  namespace: zplay-{{.Name}}
+type: Opaque
+stringData:
+  password: "{{.Password}}"
+{{- end}}
+```
+
+Actualizar `deployment.yaml`:
+```yaml
+{{- if .Password}}
+- name: PASSWORD
+  valueFrom:
+    secretKeyRef:
+      name: {{.Name}}-secret
+      key: password
+{{- end}}
+```
+
+#### Validaciones
+- [ ] Verificar que el puerto no está en uso antes de deploy
+- [ ] Validar formato de memoria (debe terminar en Gi/Mi)
+- [ ] Si raspberry seleccionada, limitar memoria a 4Gi máximo
+- [ ] Verificar que el nodo existe y tiene suficiente RAM
+
+#### Start/Stop servers
+Escalar deployment a 0/1 sin eliminar:
+```go
+func (c *Client) ScaleDeployment(namespace, deployment string, replicas int) error {
+    cmd := c.kubectl("scale", "deployment", deployment,
+        "-n", namespace,
+        fmt.Sprintf("--replicas=%d", replicas))
+    return cmd.Run()
+}
+```
+
+Añadir al menú:
+```
+▸ Deploy server
+  List servers
+  Start/Stop server   # NUEVO
+  Delete server
+  ...
+```
+
+### 🔧 Por hacer (Prioridad Baja)
+
+#### Modo no interactivo
+```bash
+zplay deploy --game terraria --name vanilla --memory 4Gi --node oracle1 --port 7777
+zplay delete vanilla --yes
+zplay list --json
+zplay stop vanilla
+zplay start vanilla
+```
+
+#### Status detallado
+```bash
+zplay status vanilla
+# Output:
+# Server: vanilla
+# Game: Terraria
+# Status: Running
+# Node: oracle1
+# Memory: 4Gi / 4Gi used
+# CPU: 0.5 / 2 cores
+# Uptime: 3d 14h
+# Players: 2 connected
+# Port: play.zyrak.cloud:7777
+```
 
 ---
 
-## Notes
+## Phase 2: Terraria Polish
 
-### Image Options for Terraria
-- `passivelemon/terraria-docker:terraria-latest` - Current, good
-- `ryshe/terraria:latest` - Alternative, also popular
-- `jacobsmile/tmodloader:latest` - For modded Terraria
+### Features
+- [ ] **Dificultad** - Classic/Expert/Master/Journey
+- [ ] **Seed del mundo** - Seed personalizada
+- [ ] **TShock** - Imagen alternativa con TShock para admin avanzado
+- [ ] **tModLoader** - Imagen con soporte de mods
+  - Imagen: `jacobsmile/tmodloader:latest`
 
-### Useful Commands for Testing
+### Backups
+
+#### Backup manual
 ```bash
-# Check if zcloud is connected
+zplay backup vanilla
+# Copia /opt/terraria/config a /mnt/das/zplay-backups/vanilla-2024-01-15.tar.gz
+```
+
+Implementación:
+```go
+func (c *Client) Backup(namespace, pvcName, destPath string) error {
+    // Crear job temporal que monta el PVC y hace tar a /mnt/das
+    // O usar kubectl cp si el pod está running
+}
+```
+
+#### Auto-backup con CronJob
+```yaml
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{.Name}}-backup
+  namespace: zplay-{{.Name}}
+spec:
+  schedule: "0 4 * * *"  # 4 AM diario
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+            - name: backup
+              image: alpine
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  tar -czf /backup/{{.Name}}-$(date +%Y%m%d).tar.gz /data
+              volumeMounts:
+                - name: data
+                  mountPath: /data
+                - name: backup
+                  mountPath: /backup
+          restartPolicy: OnFailure
+          volumes:
+            - name: data
+              persistentVolumeClaim:
+                claimName: {{.Name}}-pvc
+            - name: backup
+              hostPath:
+                path: /mnt/das/zplay-backups
+          nodeSelector:
+            kubernetes.io/hostname: oracle1
+```
+
+---
+
+## Phase 3: Minecraft
+
+### Implementación base
+- [ ] Módulo minecraft en `internal/games/minecraft/`
+- [ ] Usar imagen `itzg/minecraft-server` (muy completa)
+- [ ] Templates propios (más control que Helm)
+
+### Server types
+| Tipo | Imagen tag | Uso |
+|------|-----------|-----|
+| Paper | `TYPE=PAPER` | Default, optimizado |
+| Fabric | `TYPE=FABRIC` | Mods client-side |
+| Forge | `TYPE=FORGE` | Mods pesados |
+| Vanilla | `TYPE=VANILLA` | Puro |
+
+### Template deployment.yaml (Minecraft)
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{.Name}}-minecraft
+  namespace: zplay-{{.Name}}
+spec:
+  template:
+    spec:
+      containers:
+        - name: minecraft
+          image: itzg/minecraft-server
+          env:
+            - name: EULA
+              value: "TRUE"
+            - name: TYPE
+              value: "{{.ServerType}}"
+            - name: VERSION
+              value: "{{.Version}}"
+            - name: MEMORY
+              value: "{{.JavaMemory}}"
+            - name: MAX_PLAYERS
+              value: "{{.MaxPlayers}}"
+            - name: MOTD
+              value: "{{.MOTD}}"
+            - name: OPS
+              value: "{{.Ops}}"
+            - name: ENABLE_RCON
+              value: "true"
+            - name: RCON_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{.Name}}-secret
+                  key: rcon-password
+          ports:
+            - containerPort: 25565
+              name: minecraft
+            - containerPort: 25575
+              name: rcon
+```
+
+### Features específicas de Minecraft
+- [ ] **RCON console** - Consola remota sin kubectl attach
+- [ ] **Whitelist** - Gestionar lista blanca
+- [ ] **Ops** - Añadir/quitar operadores
+- [ ] **Plugins/Mods** - Descargar e instalar
+
+---
+
+## Phase 4: Extras
+
+### Otros juegos (futuro lejano)
+- [ ] Vintage Story (ya tienes en k3s-gameservers)
+- [ ] Factorio
+- [ ] Valheim
+
+### Mejoras de infraestructura
+- [ ] **Métricas en VictoriaMetrics** - Exportar uso de recursos
+- [ ] **Dashboards Grafana** - Panel para game servers
+- [ ] **Alertas** - Notificar si server caído
+
+---
+
+## Configuración inicial requerida
+
+### 1. Traefik (hacer una vez)
+```bash
+# En el nodo N150 (control plane)
+sudo nano /var/lib/rancher/k3s/server/manifests/traefik-config.yaml
+# Pegar la configuración de arriba
+# Guardar y esperar a que k3s recargue
+```
+
+Verificar:
+```bash
+kubectl get svc -n kube-system traefik -o yaml | grep -A20 ports
+```
+
+### 2. DNS (si no está)
+Asegurar que `play.zyrak.cloud` apunta a la IP de tu cluster (o del nodo con Traefik).
+
+### 3. Directorio de backups
+```bash
+# En oracle1
+sudo mkdir -p /mnt/das/zplay-backups
+sudo chmod 777 /mnt/das/zplay-backups
+
+# En oracle2 (redundancia)
+sudo mkdir -p /mnt/das/zplay-backups
+sudo chmod 777 /mnt/das/zplay-backups
+```
+
+---
+
+## Archivos a modificar
+
+### volume.yaml
+```yaml
+# Cambiar storageClassName
+spec:
+  storageClassName: nfs-shared  # Era: local-path
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+```
+
+### deployment.yaml
+```yaml
+# Añadir nodeSelector dinámico
+spec:
+  template:
+    spec:
+      {{- if .NodeSelector}}
+      nodeSelector:
+        kubernetes.io/hostname: {{.NodeSelector}}
+      {{- end}}
+```
+
+### terraria.go
+```go
+// Añadir NodeSelector a ServerConfig desde el menú
+// Validar memoria máxima según nodo seleccionado
+```
+
+### deploy.go
+```go
+// Añadir selección de nodo
+fmt.Println("\nSelect node:")
+fmt.Println("  1) oracle1 (24GB RAM) - recommended")
+fmt.Println("  2) oracle2 (24GB RAM)")
+fmt.Println("  3) raspberry (8GB RAM) - light servers only")
+```
+
+---
+
+## Comandos útiles para testing
+
+```bash
+# Verificar conexión zcloud
 zcloud status
 
-# Manual namespace cleanup
-kubectl delete namespace zplay-testserver
+# Ver namespaces de zplay
+kubectl get ns | grep zplay
 
-# Check Traefik entrypoints
-kubectl get svc -n kube-system traefik
+# Ver pods de un server
+kubectl get pods -n zplay-vanilla
 
-# Port forward for testing without Traefik
-kubectl port-forward -n zplay-survival deployment/survival-terraria 7777:7777
+# Logs de un server
+kubectl logs -f deployment/vanilla-terraria -n zplay-vanilla
+
+# Port forward para test sin Traefik
+kubectl port-forward -n zplay-vanilla deployment/vanilla-terraria 7777:7777
+
+# Eliminar namespace manualmente
+kubectl delete namespace zplay-vanilla
+
+# Ver PVCs
+kubectl get pvc -A | grep zplay
+
+# Ver consumo de recursos
+kubectl top pods -n zplay-vanilla
 ```
 
 ---
 
-## Questions to Resolve
+## Resumen de cambios pendientes en código
 
-1. **Storage class**: Using `local-path` - is this available on all your nodes?
-2. **Node selector**: Should we auto-detect the best node based on resources?
-3. **Port management**: How many concurrent servers do you realistically need?
-4. **Backup storage**: Local or cloud (S3/Cloudflare R2)?
+| Archivo | Cambio |
+|---------|--------|
+| `templates/volume.yaml` | storageClassName: nfs-shared |
+| `templates/deployment.yaml` | nodeSelector dinámico |
+| `templates/ingress.yaml` | entryPoints fijos (terraria1, terraria2, etc) |
+| `deploy.go` | Menú de selección de nodo |
+| `deploy.go` | Validación de memoria según nodo |
+| `terraria.go` | Mapeo puerto → entrypoint |
+| `config.go` | Añadir NodeSelector a ServerInfo |
+
+---
+
+## Orden de implementación recomendado
+
+1. ⬜ Configurar Traefik con los 4 puertos
+2. ⬜ Modificar `volume.yaml` → `nfs-shared`
+3. ⬜ Compilar y probar deploy básico
+4. ⬜ Añadir selección de nodo
+5. ⬜ Añadir validaciones
+6. ⬜ Implementar start/stop
+7. ⬜ Implementar backups
+8. ⬜ Implementar Minecraft (Phase 3)
