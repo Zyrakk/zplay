@@ -67,18 +67,45 @@ func RunDeploy(cfg *config.Config) error {
 		return fmt.Errorf("server '%s' already exists", name)
 	}
 
+	// Game-specific options
+	switch game.Name() {
+	case "terraria":
+		fmt.Println("\nServer type:")
+		fmt.Println("  1) Vanilla")
+		fmt.Println("  2) tModLoader (mods)")
+		fmt.Print("Choice [1]: ")
+		variantChoice, _ := reader.ReadString('\n')
+		variantChoice = strings.TrimSpace(variantChoice)
+
+		switch variantChoice {
+		case "", "1":
+			serverCfg.Variant = "vanilla"
+		case "2":
+			serverCfg.Variant = "tmodloader"
+			// tModLoader defaults: 4Gi request, 6Gi limit
+			serverCfg.Memory = "4Gi"
+			serverCfg.MemoryLimit = "6Gi"
+		default:
+			return fmt.Errorf("invalid server type selection")
+		}
+	}
+
 	// Memory
 	fmt.Printf("Memory [%s]: ", serverCfg.Memory)
 	memory, _ := reader.ReadString('\n')
 	memory = strings.TrimSpace(memory)
+	memoryChanged := false
 	if memory != "" {
 		serverCfg.Memory = memory
+		memoryChanged = true
 	}
 
-	// Memory limit (double the request by default)
-	memVal := strings.TrimSuffix(serverCfg.Memory, "Gi")
-	if memInt, err := strconv.Atoi(memVal); err == nil {
-		serverCfg.MemoryLimit = fmt.Sprintf("%dGi", memInt*2)
+	// Memory limit (double the request by default when memory is changed)
+	if memoryChanged {
+		memVal := strings.TrimSuffix(serverCfg.Memory, "Gi")
+		if memInt, err := strconv.Atoi(memVal); err == nil {
+			serverCfg.MemoryLimit = fmt.Sprintf("%dGi", memInt*2)
+		}
 	}
 
 	// Game-specific options
@@ -134,6 +161,43 @@ func RunDeploy(cfg *config.Config) error {
 		serverCfg.Port = nextPort
 	}
 
+	// Node selection
+	if game.Name() == "terraria" {
+		if serverCfg.Variant == "tmodloader" {
+			fmt.Println("\nSelect node:")
+			fmt.Println("  1) lake (16GB RAM, x86) - required for tModLoader")
+			fmt.Print("Choice [1]: ")
+			nodeChoice, _ := reader.ReadString('\n')
+			nodeChoice = strings.TrimSpace(nodeChoice)
+			if nodeChoice != "" && nodeChoice != "1" {
+				return fmt.Errorf("invalid node selection")
+			}
+			serverCfg.NodeSelector = "lake"
+		} else {
+			fmt.Println("\nSelect node:")
+			fmt.Println("  1) oracle1 (24GB RAM) - recommended")
+			fmt.Println("  2) oracle2 (24GB RAM)")
+			fmt.Println("  3) raspberry (8GB RAM) - light servers only")
+			fmt.Println("  4) Auto (scheduler decides)")
+			fmt.Print("Choice [1]: ")
+			nodeChoice, _ := reader.ReadString('\n')
+			nodeChoice = strings.TrimSpace(nodeChoice)
+
+			switch nodeChoice {
+			case "", "1":
+				serverCfg.NodeSelector = "oracle1"
+			case "2":
+				serverCfg.NodeSelector = "oracle2"
+			case "3":
+				serverCfg.NodeSelector = "raspberry"
+			case "4":
+				serverCfg.NodeSelector = ""
+			default:
+				return fmt.Errorf("invalid node selection")
+			}
+		}
+	}
+
 	// Validate
 	if err := game.Validate(serverCfg); err != nil {
 		return fmt.Errorf("validation failed: %w", err)
@@ -143,7 +207,15 @@ func RunDeploy(cfg *config.Config) error {
 	fmt.Println()
 	fmt.Println(dimStyle.Render("─────────────────────────────"))
 	fmt.Printf("Game:        %s\n", game.DisplayName())
+	if serverCfg.Variant != "" {
+		fmt.Printf("Variant:     %s\n", serverCfg.Variant)
+	}
 	fmt.Printf("Server:      %s\n", serverCfg.Name)
+	if serverCfg.NodeSelector != "" {
+		fmt.Printf("Node:        %s\n", serverCfg.NodeSelector)
+	} else {
+		fmt.Printf("Node:        auto\n")
+	}
 	fmt.Printf("Memory:      %s (limit: %s)\n", serverCfg.Memory, serverCfg.MemoryLimit)
 	fmt.Printf("Max Players: %d\n", serverCfg.MaxPlayers)
 	fmt.Printf("Port:        %d\n", serverCfg.Port)

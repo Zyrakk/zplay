@@ -45,7 +45,7 @@ Lo que ya está implementado y funcional a nivel de código:
 
 ### 0.3 Configurar Traefik en el clúster
 
-- [ ] Editar `/var/lib/rancher/k3s/server/manifests/traefik-config.yaml` en n150
+- [ ] Editar `/var/lib/rancher/k3s/server/manifests/traefik-config.yaml` en lake
 - [ ] Añadir los 4 entrypoints TCP: terraria1 (7777), terraria2 (7778), minecraft1 (25565), minecraft2 (25566)
 - [ ] Verificar que Traefik recarga la configuración
 - [ ] Comprobar que los puertos están expuestos: `kubectl get svc -n kube-system traefik`
@@ -137,6 +137,8 @@ Lo que ya está implementado y funcional a nivel de código:
 
 El enfoque es tratar tModLoader como una variante dentro de la implementación de Terraria, no como un juego separado. Comparte la mayoría de la configuración pero usa una imagen Docker diferente y tiene parámetros adicionales.
 
+**Nota crítica de arquitectura**: tModLoader no funciona en ARM64 (limitación de MonoMod, refs #3793 y #3429). En ZCloud debe forzarse siempre al nodo `lake` (x86) con `nodeSelector`.
+
 - [ ] Añadir campo `Variant` al `ServerConfig` (valores: "vanilla", "tmodloader")
 - [ ] Modificar el menú de deploy de Terraria para preguntar la variante:
   ```
@@ -150,17 +152,18 @@ El enfoque es tratar tModLoader como una variante dentro de la implementación d
 
 La imagen de tModLoader es diferente y tiene variables de entorno distintas.
 
-- [ ] Investigar y documentar la imagen `jacobsmile/tmodloader:latest`:
+- [ ] Investigar y documentar la imagen `hexlo/terraria-tmodloader-server:latest` (o la imagen final decidida en investigación):
   - Variables de entorno disponibles
   - Puertos requeridos
   - Rutas de datos (worlds, mods)
   - Requisitos de recursos (CPU, RAM mínima)
 - [ ] Crear template `deployment-tmodloader.yaml` o condicionar el template existente:
   ```yaml
-  image: {{ if eq .Variant "tmodloader" }}jacobsmile/tmodloader:latest{{ else }}passivelemon/terraria-docker:terraria-latest{{ end }}
+  image: {{ if eq .Variant "tmodloader" }}hexlo/terraria-tmodloader-server:latest{{ else }}hexlo/terraria-server-docker:latest{{ end }}
   ```
 - [ ] Ajustar volumeMounts según la imagen (la ruta de datos puede ser diferente)
 - [ ] Ajustar los probes (tModLoader puede tardar más en arrancar)
+- [ ] Forzar `nodeSelector.kubernetes.io/hostname=lake` cuando `Variant == tmodloader`
 
 ### 2.3 Gestión de mods
 
@@ -277,7 +280,7 @@ La imagen de tModLoader es diferente y tiene variables de entorno distintas.
 - [ ] Añadir soporte para subcomandos directos:
   ```
   zplay deploy --game terraria --name vanilla --memory 4Gi --node oracle1 --port 7777
-  zplay deploy --game terraria --name modded --variant tmodloader --node oracle2 --port 7778
+  zplay deploy --game terraria --name modded --variant tmodloader --node lake --port 7778
   zplay list [--json]
   zplay delete <nombre> --yes
   zplay stop <nombre>

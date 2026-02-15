@@ -9,7 +9,7 @@ metadata:
     server: {{.Name}}
 spec:
   entryPoints:
-    - zplay-{{.Port}}
+    - {{.Entrypoint}}
   routes:
     - match: HostSNI(`*`)
       services:

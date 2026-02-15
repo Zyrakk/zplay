@@ -1,15 +1,22 @@
 package games
 
-import "github.com/Zyrakk/zplay/internal/config"
+import (
+	"fmt"
+
+	"github.com/Zyrakk/zplay/internal/config"
+)
 
 // ServerConfig holds the configuration for deploying a game server
 type ServerConfig struct {
 	Name         string
 	Game         string
+	Variant      string
 	Memory       string
 	MemoryLimit  string
 	Port         int
+	Entrypoint   string
 	Password     string
+	MOTD         string
 	MaxPlayers   int
 	NodeSelector string
 	Domain       string
@@ -83,10 +90,34 @@ func AvailableNames() []string {
 // NewServerConfig creates a ServerConfig with defaults
 func NewServerConfig(cfg *config.Config) *ServerConfig {
 	return &ServerConfig{
+		Variant:      "vanilla",
 		Memory:       "4Gi",
 		MemoryLimit:  "8Gi",
+		Difficulty:   "0",
 		MaxPlayers:   8,
 		NodeSelector: cfg.NodeSelector,
 		Domain:       cfg.Domain,
 	}
+}
+
+// PortToEntrypoint maps known game ports to fixed Traefik entrypoints.
+func PortToEntrypoint(game string, port int) string {
+	entrypoints := map[string]map[int]string{
+		"terraria": {
+			7777: "terraria1",
+			7778: "terraria2",
+		},
+		"minecraft": {
+			25565: "minecraft1",
+			25566: "minecraft2",
+		},
+	}
+
+	if gameMap, ok := entrypoints[game]; ok {
+		if ep, ok := gameMap[port]; ok {
+			return ep
+		}
+	}
+
+	return fmt.Sprintf("zplay-%d", port)
 }

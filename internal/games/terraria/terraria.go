@@ -40,6 +40,26 @@ func (t *Terraria) Validate(cfg *games.ServerConfig) error {
 		return fmt.Errorf("max players must be between 1 and 255")
 	}
 
+	if cfg.Variant == "" {
+		cfg.Variant = "vanilla"
+	}
+	if cfg.Variant != "vanilla" && cfg.Variant != "tmodloader" {
+		return fmt.Errorf("variant must be vanilla or tmodloader")
+	}
+	if cfg.Variant == "tmodloader" && cfg.NodeSelector != "lake" {
+		return fmt.Errorf("tModLoader requires an x86 node. Only lake is available.")
+	}
+
+	validDifficulties := map[string]bool{
+		"0": true,
+		"1": true,
+		"2": true,
+		"3": true,
+	}
+	if cfg.Difficulty != "" && !validDifficulties[cfg.Difficulty] {
+		return fmt.Errorf("difficulty must be 0, 1, 2, or 3")
+	}
+
 	return nil
 }
 
@@ -54,9 +74,16 @@ func (t *Terraria) RenderManifests(cfg *games.ServerConfig) ([]string, error) {
 		cfg.WorldSize = "medium"
 	}
 	cfg.WorldSizeNum = worldSizeMap[cfg.WorldSize]
+	if cfg.Difficulty == "" {
+		cfg.Difficulty = "0"
+	}
+	if cfg.Variant == "" {
+		cfg.Variant = "vanilla"
+	}
 
 	// Set game name
 	cfg.Game = t.Name()
+	cfg.Entrypoint = games.PortToEntrypoint(cfg.Game, cfg.Port)
 
 	templateFiles := []string{
 		"namespace.yaml",

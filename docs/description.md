@@ -109,12 +109,12 @@ El estado de los servidores se mantiene en un fichero YAML local (`~/.zplay/serv
 | **oracle1** | 24 GB | ARM64 | 5 TB en /mnt/das | Worker — juegos pesados |
 | **oracle2** | 24 GB | ARM64 | 5 TB en /mnt/das | Worker — juegos pesados |
 | **raspberry** | 8 GB | ARM64 | 4 TB en /mnt/local | Worker — servidores ligeros |
-| **n150** | 16 GB | — | — | Control plane — NO usar para juegos |
+| **lake** | 16 GB | AMD64 (x86) | — | Control plane — reservado para tModLoader (único nodo x86) |
 
 **Restricciones de scheduling**:
-- `n150` ejecuta el control plane, Wazuh y VictoriaMetrics. Nunca debe recibir cargas de juego.
+- `lake` ejecuta el control plane. Solo debe usarse para cargas que requieran x86, concretamente tModLoader.
 - `raspberry` tiene solo 8 GB y debe limitarse a servidores vanilla ligeros (Terraria sin mods, max 4 GB).
-- `oracle1` y `oracle2` son los nodos principales para juegos, especialmente los que requieren más RAM (Minecraft, Terraria con mods).
+- `oracle1` y `oracle2` son los nodos principales para juegos vanilla y cargas ARM64.
 
 ### Almacenamiento
 
@@ -124,7 +124,7 @@ El estado de los servidores se mantiene en un fichero YAML local (`~/.zplay/serv
 | `nfs-nvme` | 500 GB | Reservado (VictoriaMetrics, Wazuh) — NO usar |
 | `local-path` | Variable | NO usar para game servers (no permite migración entre nodos) |
 
-**Importante**: Actualmente los templates usan `local-path`. Debe cambiarse a `nfs-shared` antes de producción.
+**Importante**: Los templates de Terraria ya usan `nfs-shared` para persistencia compartida entre nodos.
 
 **Backups**: El destino de backups es `/mnt/das` en oracle1 u oracle2, separado del storage principal NFS para que las backups sobrevivan a un fallo del storage compartido.
 
@@ -157,7 +157,8 @@ La estrategia óptima es definir un set fijo de entrypoints (terraria1, terraria
 
 **Estado**: Implementación base completada.
 
-**Imagen Docker**: `passivelemon/terraria-docker:terraria-latest`
+**Imagen Docker**: `hexlo/terraria-server-docker:latest`
+Nota: esta imagen se eligió por soporte multi-arch (amd64 + arm64), necesario para desplegar tanto en nodos Oracle ARM64 como en x86.
 
 **Parámetros configurables**:
 - Nombre del servidor
@@ -169,7 +170,7 @@ La estrategia óptima es definir un set fijo de entrypoints (terraria1, terraria
 
 **Variantes planificadas**:
 - **Vanilla** — La implementación actual, servidor base sin modificaciones.
-- **tModLoader** — Servidor con soporte de mods. Requiere imagen diferente (`jacobsmile/tmodloader:latest`) y configuración adicional para selección e instalación de mods.
+- **tModLoader** — Servidor con soporte de mods. Se forzará al nodo `lake` (único x86) y usará imagen específica de tModLoader en Fase 2.
 
 **Recursos K8s generados por servidor**:
 - Namespace (`zplay-{nombre}`)
@@ -240,7 +241,6 @@ servers:
 |---------|-----|
 | `charmbracelet/bubbletea` | Framework TUI para el menú interactivo |
 | `charmbracelet/lipgloss` | Estilos y colores en terminal |
-| `charmbracelet/huh` | Formularios interactivos (declarado pero aún no usado) |
 | `gopkg.in/yaml.v3` | Serialización de configuración y estado |
 
 ---
@@ -265,17 +265,13 @@ Cada servidor se despliega en su propio namespace (`zplay-{nombre}`), lo que pro
 
 ## Limitaciones actuales
 
-1. **StorageClass**: Los templates usan `local-path` en vez de `nfs-shared`.
-2. **Entrypoints de Traefik**: Los templates usan entrypoints dinámicos (`zplay-{puerto}`) que no existen. Hay que cambiar a entrypoints fijos pre-configurados.
-3. **Sin selección de nodo**: El deploy no permite elegir en qué nodo ejecutar el servidor.
-4. **Sin validación de recursos**: No se verifica si el nodo tiene suficiente RAM antes de desplegar.
-5. **Sin validación de puertos**: No se comprueba si el puerto ya está en uso por otro servidor.
-6. **Passwords en plaintext**: No se usan Secrets de Kubernetes.
-7. **Sin start/stop**: Solo se puede crear o eliminar servidores, no pausarlos/reanudarlos.
-8. **Sin backups**: No hay mecanismo de backup de los worlds.
-9. **Sin modo no interactivo**: No se pueden ejecutar comandos directamente (ej: `zplay deploy --game terraria --name vanilla`).
-10. **Estado local**: Si se pierde `servers.yaml`, se pierde la referencia a los servidores.
-11. **Sin Minecraft**: Solo Terraria vanilla está implementado.
-12. **Sin tModLoader**: No hay soporte para Terraria con mods.
-13. **Sin dificultad configurable**: Terraria siempre usa dificultad 1 (Normal).
-14. **Dependencia de huh**: `charmbracelet/huh` está en go.mod pero no se usa; podría eliminarse o usarse para mejorar los formularios interactivos.
+1. **Passwords en plaintext**: No se usan Secrets de Kubernetes para password.
+2. **Sin validación de recursos en clúster**: No se verifica capacidad real de RAM/CPU antes del deploy.
+3. **Sin validación de puertos en uso real del clúster**: Solo hay estado local, no reconciliación completa.
+4. **Sin start/stop**: Solo se puede crear o eliminar servidores, no pausarlos/reanudarlos.
+5. **Sin backups**: No hay mecanismo de backup/restore integrado.
+6. **Sin modo no interactivo**: No se pueden ejecutar comandos directamente con flags.
+7. **Estado local como fuente primaria**: Si se pierde `servers.yaml`, se pierde la referencia local a servidores existentes.
+8. **Sin Minecraft**: Solo Terraria está implementado actualmente.
+9. **Sin template de tModLoader aún**: Existe preparación de variante y restricciones de nodo, pero falta implementación completa.
+10. **Sin menú de dificultad todavía**: Se usa dificultad por defecto (classic) salvo ajuste manual futuro.

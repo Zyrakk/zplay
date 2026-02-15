@@ -28,25 +28,33 @@ spec:
       {{- end}}
       containers:
         - name: terraria
-          image: passivelemon/terraria-docker:terraria-latest
+          image: hexlo/terraria-server-docker:latest
           stdin: true
           tty: true
           volumeMounts:
             - name: data
-              mountPath: /opt/terraria/config
+              mountPath: /root/.local/share/Terraria/Worlds
           ports:
             - name: game
               containerPort: 7777
               protocol: TCP
           env:
-            - name: WORLD_SIZE
+            - name: autocreate
               value: "{{.WorldSizeNum}}"
-            - name: MAX_PLAYERS
+            - name: difficulty
+              value: "{{.Difficulty}}"
+            - name: maxplayers
               value: "{{.MaxPlayers}}"
-            - name: DIFFICULTY
-              value: "{{if .Difficulty}}{{.Difficulty}}{{else}}1{{end}}"
+            - name: port
+              value: "7777"
+            - name: world
+              value: "/root/.local/share/Terraria/Worlds/{{.Name}}.wld"
+            {{- if .MOTD}}
+            - name: motd
+              value: "{{.MOTD}}"
+            {{- end}}
             {{- if .Password}}
-            - name: PASSWORD
+            - name: password
               value: "{{.Password}}"
             {{- end}}
           resources:
