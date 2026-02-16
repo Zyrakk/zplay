@@ -1,172 +1,193 @@
 # ZPlay
 
-Game server manager for Kubernetes. Deploy, manage, and monitor game servers on your k3s cluster.
+ZPlay is an interactive CLI to deploy and operate game servers on Kubernetes (k3s).
 
-## Features
+## Project Status
 
-- 🎮 **Interactive CLI** - Easy-to-use menu-driven interface
-- 🚀 **Quick Deploy** - Spin up game servers in seconds
-- 📊 **Server Management** - List, delete, view logs
-- 🖥️ **Console Access** - Attach to server console directly
-- 🔌 **ZCloud Integration** - Works with your existing zcloud setup
+Current status (February 16, 2026):
+
+- Phase 0 - Foundation: completed.
+  - Project compiles and deploys Terraria vanilla successfully.
+- Phase 1 - Robustness: completed.
+  - Node selection in deploy flow.
+  - Deploy validations (name, port, memory, node limits).
+  - Passwords moved to Kubernetes Secrets.
+  - Start/Stop servers without deleting data.
+  - Terraria difficulty selection (Classic/Expert/Master/Journey).
+- Phase 2+ (mods, backups, Minecraft expansion): planned in `docs/roadmap.md`.
 
 ## Supported Games
 
-- ✅ Terraria
-- 🔜 Minecraft (Paper, Fabric, Forge)
+- Terraria (vanilla): stable.
+- Minecraft: not implemented yet.
 
 ## Requirements
 
 - Go 1.22+
-- kubectl
-- Access to a Kubernetes cluster (via zcloud or direct kubeconfig)
-- Traefik ingress controller (included with k3s)
+- `kubectl` configured against your cluster
+- Access to your Kubernetes cluster (`zcloud login` or direct kubeconfig)
+- Traefik with TCP entrypoints for game ports
 
 ## Installation
 
+### Option A: Build and run locally
+
 ```bash
-# Clone the repository
 git clone https://github.com/Zyrakk/zplay.git
 cd zplay
-
-# Install dependencies
 make deps
+make dev
+```
 
-# Build and install
+### Option B: Install system-wide (recommended)
+
+```bash
+git clone https://github.com/Zyrakk/zplay.git
+cd zplay
+make deps
+make build
+sudo cp dist/zplay /usr/local/bin/zplay
+```
+
+Equivalent shortcut:
+
+```bash
 make install
 ```
 
-## Usage
-
-Make sure you're connected to your cluster first:
+### Option C: Install for current user (no sudo)
 
 ```bash
-# If using zcloud
-zcloud login
+git clone https://github.com/Zyrakk/zplay.git
+cd zplay
+make deps
+make build
+mkdir -p "$HOME/.local/bin"
+cp dist/zplay "$HOME/.local/bin/zplay"
+export PATH="$HOME/.local/bin:$PATH"
 ```
 
-Then run zplay:
+## Cluster Login and First Run
+
+If you use ZCloud:
 
 ```bash
+zcloud login
+kubectl --kubeconfig "$HOME/.zcloud/kubeconfig" get nodes
 zplay
 ```
 
-You'll see an interactive menu:
+By default, ZPlay reads kubeconfig from `~/.zcloud/kubeconfig`.
 
-```
-╔═══════════════════════════════════════╗
-║     ZPlay - Game Server Manager       ║
-╚═══════════════════════════════════════╝
+## Main Menu
 
-▸ Deploy server
-  List servers
-  Delete server
-  Server console
-  View logs
-  Exit
-```
-
-### Deploy a Server
-
-1. Select "Deploy server"
-2. Choose the game (Terraria, etc.)
-3. Enter server name, memory, world size, etc.
-4. Confirm and wait for deployment
-
-```
-Server ready!
-Connect to: play.zyrak.cloud:7777
+```text
+Deploy server
+List servers
+Delete server
+Start/Stop server
+Server console
+View logs
+Exit
 ```
 
-### List Servers
+## Deploy Flow (Terraria)
 
-Shows all deployed servers with their status:
+Deploy prompts include:
 
-```
-NAME            GAME         PORT     MEMORY     STATUS     ADDRESS
-───────────────────────────────────────────────────────────────────
-survival        terraria     7777     4Gi        Running    play.zyrak.cloud:7777
-creative        terraria     7778     4Gi        Running    play.zyrak.cloud:7778
-```
+1. Server name
+2. Node selection
+   - `oracle1`
+   - `oracle2`
+   - `raspberry`
+   - `Auto`
+3. Server type (vanilla / tModLoader selector present)
+4. Memory
+5. World size
+6. Difficulty
+   - Classic (`0`)
+   - Expert (`1`)
+   - Master (`2`)
+   - Journey (`3`)
+7. Max players
+8. Optional password
+9. Port
 
-### Server Console
+Pre-deploy summary shows selected node, world size, difficulty, and other settings.
 
-Attach to a server's interactive console:
+## Phase 1 Validations
 
-```bash
-# Through the menu
-zplay → Server console → Select server
+Before deploy confirmation, ZPlay validates:
 
-# Detach with Ctrl+P, Ctrl+Q
-```
+- Name must be RFC1123-compatible (`2-20` chars, lowercase, digits, `-`)
+- Port must be allowed for the game entrypoints
+  - Terraria: `7777`, `7778`
+- Port must not already be used by another server
+- Memory format must match `^\d+[GM]i$` (examples: `4Gi`, `512Mi`)
+- `raspberry` node max memory is `4Gi`
 
-### View Logs
+## Password Handling (Kubernetes Secrets)
 
-Stream or view server logs:
+When a password is provided:
 
-```bash
-zplay → View logs → Select server → Follow? [Y/n]
-```
+- ZPlay creates a Secret: `<server>-secret`
+- Deployment references password via `valueFrom.secretKeyRef`
+- Password is not stored as plaintext env value in Deployment manifests
+
+When password is empty:
+
+- No Secret is rendered/applied.
+
+## Start/Stop Without Deletion
+
+`Start/Stop server` scales deployment replicas:
+
+- Running server -> Stop -> replicas `0`
+- Stopped server -> Start -> replicas `1` and wait for readiness
+
+PVC/world data is preserved because namespace/PVC are not deleted.
+
+## List Output
+
+`List servers` includes:
+
+- `NODE` column (`oracle1`, `oracle2`, `raspberry`, or `auto`)
+- Real status, including `Stopped` when deployment replicas are `0`
+
+## Traefik EntryPoints
+
+ZPlay uses fixed game entrypoint mapping in code:
+
+- Terraria `7777` -> `terraria1`
+- Terraria `7778` -> `terraria2`
+- Minecraft `25565` -> `minecraft1` (future)
+- Minecraft `25566` -> `minecraft2` (future)
+
+Make sure these TCP entrypoints exist in your Traefik configuration.
 
 ## Configuration
 
-Configuration is stored in `~/.zplay/config.yaml`:
+`~/.zplay/config.yaml`:
 
 ```yaml
 domain: play.zyrak.cloud
 kubeconfig: ~/.zcloud/kubeconfig
-node_selector: ""  # Optional: pin servers to a specific node
+node_selector: ""
 data_path: ~/.zplay
 ```
 
-## Traefik Configuration
-
-ZPlay creates IngressRouteTCP resources for each server. You need to configure Traefik entrypoints for the game ports.
-
-Add to your Traefik Helm values or HelmChartConfig:
-
-```yaml
-ports:
-  zplay-7777:
-    port: 7777
-    expose: true
-    exposedPort: 7777
-    protocol: TCP
-  zplay-7778:
-    port: 7778
-    expose: true
-    exposedPort: 7778
-    protocol: TCP
-  # Add more ports as needed
-```
-
-Or use a port range approach (see docs).
-
-## File Structure
-
-```
-~/.zplay/
-├── config.yaml      # Configuration
-└── servers.yaml     # Deployed servers state
-```
+Server state is stored in `~/.zplay/servers.yaml`.
 
 ## Development
 
 ```bash
-# Run in dev mode
 make dev
-
-# Run tests
 make test
-
-# Build for all platforms
 make build-all
+make lint
+make fmt
 ```
 
 ## License
 
 MIT
-
-## Author
-
-Zyrak - [zyrak.cloud](https://zyrak.cloud)
