@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -11,6 +12,11 @@ import (
 	"github.com/Zyrakk/zplay/internal/config"
 	"github.com/Zyrakk/zplay/internal/games"
 	"github.com/Zyrakk/zplay/internal/k8s"
+)
+
+var (
+	deployNameRegex   = regexp.MustCompile(`^[a-z][a-z0-9-]{0,18}[a-z0-9]$`)
+	deployMemoryRegex = regexp.MustCompile(`^\d+[GM]i$`)
 )
 
 func RunDeploy(cfg *config.Config) error {
@@ -67,6 +73,29 @@ func RunDeploy(cfg *config.Config) error {
 		return fmt.Errorf("server '%s' already exists", name)
 	}
 
+	// Node selection
+	fmt.Println("\nSelect node:")
+	fmt.Println("  1) oracle1 (24GB RAM) - recommended")
+	fmt.Println("  2) oracle2 (24GB RAM)")
+	fmt.Println("  3) raspberry (8GB RAM) - light servers only")
+	fmt.Println("  4) Auto (scheduler decides)")
+	fmt.Print("Choice [1]: ")
+	nodeChoice, _ := reader.ReadString('\n')
+	nodeChoice = strings.TrimSpace(nodeChoice)
+
+	switch nodeChoice {
+	case "1":
+		serverCfg.NodeSelector = "oracle1"
+	case "2":
+		serverCfg.NodeSelector = "oracle2"
+	case "3":
+		serverCfg.NodeSelector = "raspberry"
+	case "", "4":
+		serverCfg.NodeSelector = ""
+	default:
+		return fmt.Errorf("invalid node selection")
+	}
+
 	// Game-specific options
 	switch game.Name() {
 	case "terraria":
@@ -82,6 +111,9 @@ func RunDeploy(cfg *config.Config) error {
 			serverCfg.Variant = "vanilla"
 		case "2":
 			serverCfg.Variant = "tmodloader"
+			fmt.Println(dimStyle.Render("tModLoader requires x86; node is forced to lake."))
+			// tModLoader image is x86-only; force scheduling on lake.
+			serverCfg.NodeSelector = "lake"
 			// tModLoader defaults: 4Gi request, 6Gi limit
 			serverCfg.Memory = "4Gi"
 			serverCfg.MemoryLimit = "6Gi"
@@ -127,6 +159,28 @@ func RunDeploy(cfg *config.Config) error {
 		default:
 			serverCfg.WorldSize = "medium"
 		}
+
+		fmt.Println("\nDifficulty:")
+		fmt.Println("  1) Classic")
+		fmt.Println("  2) Expert")
+		fmt.Println("  3) Master")
+		fmt.Println("  4) Journey")
+		fmt.Print("Choice [1]: ")
+		difficultyChoice, _ := reader.ReadString('\n')
+		difficultyChoice = strings.TrimSpace(difficultyChoice)
+
+		switch difficultyChoice {
+		case "", "1":
+			serverCfg.Difficulty = "0"
+		case "2":
+			serverCfg.Difficulty = "1"
+		case "3":
+			serverCfg.Difficulty = "2"
+		case "4":
+			serverCfg.Difficulty = "3"
+		default:
+			return fmt.Errorf("invalid difficulty selection")
+		}
 	}
 
 	// Max players
@@ -161,41 +215,8 @@ func RunDeploy(cfg *config.Config) error {
 		serverCfg.Port = nextPort
 	}
 
-	// Node selection
-	if game.Name() == "terraria" {
-		if serverCfg.Variant == "tmodloader" {
-			fmt.Println("\nSelect node:")
-			fmt.Println("  1) lake (16GB RAM, x86) - required for tModLoader")
-			fmt.Print("Choice [1]: ")
-			nodeChoice, _ := reader.ReadString('\n')
-			nodeChoice = strings.TrimSpace(nodeChoice)
-			if nodeChoice != "" && nodeChoice != "1" {
-				return fmt.Errorf("invalid node selection")
-			}
-			serverCfg.NodeSelector = "lake"
-		} else {
-			fmt.Println("\nSelect node:")
-			fmt.Println("  1) oracle1 (24GB RAM) - recommended")
-			fmt.Println("  2) oracle2 (24GB RAM)")
-			fmt.Println("  3) raspberry (8GB RAM) - light servers only")
-			fmt.Println("  4) Auto (scheduler decides)")
-			fmt.Print("Choice [1]: ")
-			nodeChoice, _ := reader.ReadString('\n')
-			nodeChoice = strings.TrimSpace(nodeChoice)
-
-			switch nodeChoice {
-			case "", "1":
-				serverCfg.NodeSelector = "oracle1"
-			case "2":
-				serverCfg.NodeSelector = "oracle2"
-			case "3":
-				serverCfg.NodeSelector = "raspberry"
-			case "4":
-				serverCfg.NodeSelector = ""
-			default:
-				return fmt.Errorf("invalid node selection")
-			}
-		}
+	if err := validateDeployConfig(serverCfg, state, game); err != nil {
+		return fmt.Errorf("validation failed: %w", err)
 	}
 
 	// Validate
@@ -221,6 +242,10 @@ func RunDeploy(cfg *config.Config) error {
 	fmt.Printf("Port:        %d\n", serverCfg.Port)
 	if serverCfg.WorldSize != "" {
 		fmt.Printf("World Size:  %s\n", serverCfg.WorldSize)
+	}
+	if serverCfg.Difficulty != "" {
+		diffNames := map[string]string{"0": "Classic", "1": "Expert", "2": "Master", "3": "Journey"}
+		fmt.Printf("Difficulty:  %s\n", diffNames[serverCfg.Difficulty])
 	}
 	if serverCfg.Password != "" {
 		fmt.Printf("Password:    %s\n", "********")
@@ -269,6 +294,7 @@ func RunDeploy(cfg *config.Config) error {
 	state.Add(config.ServerInfo{
 		Name:       serverCfg.Name,
 		Game:       game.Name(),
+		Node:       serverCfg.NodeSelector,
 		Port:       serverCfg.Port,
 		Memory:     serverCfg.Memory,
 		MaxPlayers: serverCfg.MaxPlayers,
@@ -285,4 +311,85 @@ func RunDeploy(cfg *config.Config) error {
 	fmt.Println(successStyle.Render("═══════════════════════════════════════"))
 
 	return nil
+}
+
+func validateDeployConfig(serverCfg *games.ServerConfig, state *config.ServerState, game games.Game) error {
+	if !deployNameRegex.MatchString(serverCfg.Name) {
+		return fmt.Errorf("server name must match RFC 1123: lowercase letters, numbers, hyphens, 2-20 chars, no leading/trailing hyphen")
+	}
+
+	allowedPorts := allowedEntrypointPorts(game.Name())
+	if len(allowedPorts) > 0 && !containsInt(allowedPorts, serverCfg.Port) {
+		return fmt.Errorf("port %d has no configured entrypoint for %s (available ports: %s)", serverCfg.Port, game.Name(), formatPorts(allowedPorts))
+	}
+
+	for _, srv := range state.Servers {
+		if srv.Name != serverCfg.Name && srv.Port == serverCfg.Port {
+			return fmt.Errorf("port %d is already in use by server '%s'", serverCfg.Port, srv.Name)
+		}
+	}
+
+	if !deployMemoryRegex.MatchString(serverCfg.Memory) {
+		return fmt.Errorf("memory must match ^\\d+[GM]i$ (example: 4Gi, 512Mi)")
+	}
+
+	if serverCfg.NodeSelector == "raspberry" {
+		memoryMi, err := memoryToMi(serverCfg.Memory)
+		if err != nil {
+			return err
+		}
+		if memoryMi > 4*1024 {
+			return fmt.Errorf("raspberry node is limited to 4Gi maximum")
+		}
+	}
+
+	return nil
+}
+
+func allowedEntrypointPorts(gameName string) []int {
+	switch gameName {
+	case "terraria":
+		return []int{7777, 7778}
+	case "minecraft":
+		return []int{25565, 25566}
+	default:
+		return nil
+	}
+}
+
+func containsInt(values []int, target int) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
+}
+
+func formatPorts(ports []int) string {
+	values := make([]string, 0, len(ports))
+	for _, port := range ports {
+		values = append(values, strconv.Itoa(port))
+	}
+	return strings.Join(values, ", ")
+}
+
+func memoryToMi(memory string) (int, error) {
+	if len(memory) < 3 {
+		return 0, fmt.Errorf("invalid memory format: %s", memory)
+	}
+
+	value, err := strconv.Atoi(memory[:len(memory)-2])
+	if err != nil {
+		return 0, fmt.Errorf("invalid memory format: %s", memory)
+	}
+
+	switch memory[len(memory)-2] {
+	case 'G':
+		return value * 1024, nil
+	case 'M':
+		return value, nil
+	default:
+		return 0, fmt.Errorf("invalid memory format: %s", memory)
+	}
 }

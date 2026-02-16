@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"embed"
 	"fmt"
+	"strings"
 	"text/template"
 
 	"github.com/Zyrakk/zplay/internal/games"
@@ -88,6 +89,7 @@ func (t *Terraria) RenderManifests(cfg *games.ServerConfig) ([]string, error) {
 	templateFiles := []string{
 		"namespace.yaml",
 		"volume.yaml",
+		"secret.yaml",
 		"deployment.yaml",
 		"service.yaml",
 		"ingress.yaml",
@@ -109,7 +111,14 @@ func (t *Terraria) RenderManifests(cfg *games.ServerConfig) ([]string, error) {
 		manifests = append(manifests, buf.String())
 	}
 
-	return manifests, nil
+	// Filter empty manifests (conditional templates like secret.yaml)
+	var filtered []string
+	for _, m := range manifests {
+		if strings.TrimSpace(m) != "" {
+			filtered = append(filtered, m)
+		}
+	}
+	return filtered, nil
 }
 
 func (t *Terraria) GetDeploymentName(serverName string) string {

@@ -56,6 +56,7 @@ func initialMenuModel(cfg *config.Config) menuModel {
 			"Deploy server",
 			"List servers",
 			"Delete server",
+			"Start/Stop server",
 			"Server console",
 			"View logs",
 			"Exit",
@@ -137,6 +138,8 @@ func Run(cfg *config.Config) error {
 			actionErr = RunList(cfg)
 		case "Delete server":
 			actionErr = RunDelete(cfg)
+		case "Start/Stop server":
+			actionErr = RunStartStop(cfg)
 		case "Server console":
 			actionErr = RunConsole(cfg)
 		case "View logs":

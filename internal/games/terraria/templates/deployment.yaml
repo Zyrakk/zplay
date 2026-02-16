@@ -41,8 +41,8 @@ spec:
           env:
             - name: autocreate
               value: "{{.WorldSizeNum}}"
-            - name: difficulty
-              value: "{{.Difficulty}}"
+            - name: DIFFICULTY
+              value: "{{if .Difficulty}}{{.Difficulty}}{{else}}0{{end}}"
             - name: maxplayers
               value: "{{.MaxPlayers}}"
             - name: port
@@ -54,8 +54,11 @@ spec:
               value: "{{.MOTD}}"
             {{- end}}
             {{- if .Password}}
-            - name: password
-              value: "{{.Password}}"
+            - name: PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{.Name}}-secret
+                  key: password
             {{- end}}
           resources:
             requests:

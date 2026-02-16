@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 
 	"github.com/Zyrakk/zplay/internal/config"
@@ -69,6 +70,30 @@ func (c *Client) WaitForReady(namespace, deployment string, timeoutSeconds int) 
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
+}
+
+func (c *Client) ScaleDeployment(namespace, deployment string, replicas int) error {
+	cmd := c.kubectl("scale", "deployment", deployment,
+		"-n", namespace,
+		fmt.Sprintf("--replicas=%d", replicas))
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+func (c *Client) GetReplicas(namespace, deployment string) (int, error) {
+	cmd := c.kubectl("get", "deployment", deployment,
+		"-n", namespace,
+		"-o", "jsonpath={.spec.replicas}")
+	out, err := cmd.Output()
+	if err != nil {
+		return 0, err
+	}
+	replicas, err := strconv.Atoi(strings.TrimSpace(string(out)))
+	if err != nil {
+		return 0, err
+	}
+	return replicas, nil
 }
 
 func (c *Client) AttachConsole(namespace, deployment string) error {
