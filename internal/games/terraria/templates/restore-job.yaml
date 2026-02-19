@@ -1,0 +1,48 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{.Name}}-restore-{{.Timestamp}}
+  namespace: zplay-{{.Name}}
+  labels:
+    app: zplay
+    game: {{.Game}}
+    server: {{.Name}}
+    type: restore
+spec:
+  ttlSecondsAfterFinished: 300
+  backoffLimit: 1
+  template:
+    spec:
+      restartPolicy: Never
+      nodeSelector:
+        kubernetes.io/hostname: oracle1
+      containers:
+        - name: restore
+          image: alpine:3.19
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              echo "Starting restore of {{.Name}} from {{.BackupFile}}..."
+              if [ ! -f "/backup/{{.BackupFile}}" ]; then
+                echo "Backup file not found: {{.BackupFile}}"
+                exit 1
+              fi
+              for path in /data/* /data/.[!.]* /data/..?*; do
+                [ -e "$path" ] || continue
+                rm -rf "$path"
+              done
+              tar -xzf /backup/{{.BackupFile}} -C /data
+              echo "Restore complete: {{.BackupFile}}"
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: backup
+              mountPath: /backup
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{.Name}}-pvc
+        - name: backup
+          hostPath:
+            path: /mnt/das/zplay-backups
+            type: DirectoryOrCreate

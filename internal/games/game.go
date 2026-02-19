@@ -9,8 +9,11 @@ import (
 // ServerConfig holds the configuration for deploying a game server
 type ServerConfig struct {
 	Name         string
+	Timestamp    string
+	BackupFile   string
 	Game         string
 	Variant      string
+	AutoBackup   bool
 	Memory       string
 	MemoryLimit  string
 	Port         int
@@ -48,6 +51,12 @@ type Game interface {
 
 	// RenderManifests generates Kubernetes manifests for the server
 	RenderManifests(cfg *ServerConfig) ([]string, error)
+
+	// RenderBackupJob generates a Kubernetes Job manifest for manual backup
+	RenderBackupJob(cfg *ServerConfig) (string, error)
+
+	// RenderRestoreJob generates a Kubernetes Job manifest for restore
+	RenderRestoreJob(cfg *ServerConfig) (string, error)
 
 	// GetDeploymentName returns the deployment name for a server
 	GetDeploymentName(serverName string) string
@@ -91,6 +100,7 @@ func AvailableNames() []string {
 func NewServerConfig(cfg *config.Config) *ServerConfig {
 	return &ServerConfig{
 		Variant:      "vanilla",
+		AutoBackup:   true,
 		Memory:       "4Gi",
 		MemoryLimit:  "8Gi",
 		Difficulty:   "0",

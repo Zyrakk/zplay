@@ -1,0 +1,43 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{.Name}}-backup-{{.Timestamp}}
+  namespace: zplay-{{.Name}}
+  labels:
+    app: zplay
+    game: {{.Game}}
+    server: {{.Name}}
+    type: backup
+spec:
+  ttlSecondsAfterFinished: 300
+  backoffLimit: 1
+  template:
+    spec:
+      restartPolicy: Never
+      nodeSelector:
+        kubernetes.io/hostname: oracle1
+      containers:
+        - name: backup
+          image: alpine:3.19
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              echo "Starting backup of {{.Name}}..."
+              mkdir -p /backup
+              tar -czf /backup/{{.Name}}-{{.Timestamp}}.tar.gz -C /data .
+              echo "Backup complete: {{.Name}}-{{.Timestamp}}.tar.gz"
+              ls -lh /backup/{{.Name}}-{{.Timestamp}}.tar.gz
+          volumeMounts:
+            - name: data
+              mountPath: /data
+              readOnly: true
+            - name: backup
+              mountPath: /backup
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{.Name}}-pvc
+        - name: backup
+          hostPath:
+            path: /mnt/das/zplay-backups
+            type: DirectoryOrCreate

@@ -39,7 +39,7 @@ func RunList(cfg *config.Config) error {
 
 		namespace := game.GetNamespace(srv.Name)
 		deployment := game.GetDeploymentName(srv.Name)
-		status, _ := client.GetPodStatus(namespace)
+		status, _ := client.GetPodStatus(namespace, fmt.Sprintf("app=zplay,server=%s,!job-name", srv.Name))
 		if status == "" {
 			status = "Unknown"
 		}

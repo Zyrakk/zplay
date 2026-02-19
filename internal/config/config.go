@@ -22,6 +22,7 @@ type ServerInfo struct {
 	Name       string `yaml:"name"`
 	Game       string `yaml:"game"`
 	Variant    string `yaml:"variant,omitempty"`
+	AutoBackup bool   `yaml:"auto_backup,omitempty"`
 	Node       string `yaml:"node"`
 	Port       int    `yaml:"port"`
 	Memory     string `yaml:"memory"`

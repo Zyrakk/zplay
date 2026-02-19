@@ -235,6 +235,15 @@ func RunDeploy(cfg *config.Config) error {
 		return fmt.Errorf("validation failed: %w", err)
 	}
 
+	if gameSupportsAutoBackup(game) {
+		fmt.Print("Enable daily auto-backup? [Y/n]: ")
+		autoBackupChoice, _ := reader.ReadString('\n')
+		autoBackupChoice = strings.TrimSpace(strings.ToLower(autoBackupChoice))
+		serverCfg.AutoBackup = autoBackupChoice != "n" && autoBackupChoice != "no"
+	} else {
+		serverCfg.AutoBackup = false
+	}
+
 	// Confirm
 	fmt.Println()
 	fmt.Println(dimStyle.Render("─────────────────────────────"))
@@ -257,6 +266,13 @@ func RunDeploy(cfg *config.Config) error {
 	if serverCfg.Difficulty != "" {
 		diffNames := map[string]string{"0": "Classic", "1": "Expert", "2": "Master", "3": "Journey"}
 		fmt.Printf("Difficulty:  %s\n", diffNames[serverCfg.Difficulty])
+	}
+	if gameSupportsAutoBackup(game) {
+		if serverCfg.AutoBackup {
+			fmt.Printf("Auto Backup: enabled (daily 4:00 AM)\n")
+		} else {
+			fmt.Printf("Auto Backup: disabled\n")
+		}
 	}
 	if serverCfg.Password != "" {
 		fmt.Printf("Password:    %s\n", "********")
@@ -340,6 +356,7 @@ func RunDeploy(cfg *config.Config) error {
 		Name:       serverCfg.Name,
 		Game:       game.Name(),
 		Variant:    serverCfg.Variant,
+		AutoBackup: serverCfg.AutoBackup,
 		Node:       serverCfg.NodeSelector,
 		Port:       serverCfg.Port,
 		Memory:     serverCfg.Memory,
@@ -400,6 +417,15 @@ func allowedEntrypointPorts(gameName string) []int {
 		return []int{25565, 25566}
 	default:
 		return nil
+	}
+}
+
+func gameSupportsAutoBackup(game games.Game) bool {
+	switch game.Name() {
+	case "terraria":
+		return true
+	default:
+		return false
 	}
 }
 

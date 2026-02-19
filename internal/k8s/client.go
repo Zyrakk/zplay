@@ -74,9 +74,14 @@ func (c *Client) NamespaceExists(namespace string) bool {
 	return cmd.Run() == nil
 }
 
-func (c *Client) GetPodStatus(namespace string) (string, error) {
-	cmd := c.kubectl("get", "pods", "-n", namespace,
-		"-o", "jsonpath={.items[0].status.phase}")
+func (c *Client) GetPodStatus(namespace, labelSelector string) (string, error) {
+	args := []string{"get", "pods", "-n", namespace}
+	if strings.TrimSpace(labelSelector) != "" {
+		args = append(args, "-l", labelSelector)
+	}
+	args = append(args, "-o", "jsonpath={.items[0].status.phase}")
+
+	cmd := c.kubectl(args...)
 	out, err := cmd.Output()
 	if err != nil {
 		return "", err
@@ -103,6 +108,74 @@ func (c *Client) WaitForReady(namespace, deployment string, timeoutSeconds int) 
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
+}
+
+func (c *Client) RunJob(namespace, jobName, jobManifest string, timeoutSeconds int) error {
+	if err := validateJobArgs(namespace, jobName, timeoutSeconds); err != nil {
+		return err
+	}
+
+	if err := c.Apply(jobManifest); err != nil {
+		return fmt.Errorf("applying job: %w", err)
+	}
+
+	return c.waitForJobCompletion(namespace, jobName, timeoutSeconds)
+}
+
+func (c *Client) RunBackupJob(namespace, jobName, jobManifest string, timeoutSeconds int) error {
+	if err := c.RunJob(namespace, jobName, jobManifest, timeoutSeconds); err != nil {
+		return fmt.Errorf("running backup job: %w", err)
+	}
+	return nil
+}
+
+func (c *Client) RunJobAndGetLogs(namespace, jobName, jobManifest string, timeoutSeconds int) (string, error) {
+	if err := c.RunJob(namespace, jobName, jobManifest, timeoutSeconds); err != nil {
+		return "", err
+	}
+
+	logsCmd := c.kubectl("logs", fmt.Sprintf("job/%s", jobName), "-n", namespace)
+	out, err := logsCmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("reading job logs: %w", err)
+	}
+
+	return string(out), nil
+}
+
+func validateJobArgs(namespace, jobName string, timeoutSeconds int) error {
+	if strings.TrimSpace(namespace) == "" {
+		return fmt.Errorf("namespace is required")
+	}
+	if strings.TrimSpace(jobName) == "" {
+		return fmt.Errorf("job name is required")
+	}
+	if timeoutSeconds <= 0 {
+		return fmt.Errorf("timeout must be greater than 0")
+	}
+	return nil
+}
+
+func (c *Client) waitForJobCompletion(namespace, jobName string, timeoutSeconds int) error {
+	waitCmd := c.kubectl("wait", "--for=condition=complete",
+		fmt.Sprintf("job/%s", jobName),
+		"-n", namespace,
+		fmt.Sprintf("--timeout=%ds", timeoutSeconds))
+	waitCmd.Stdout = os.Stdout
+	waitCmd.Stderr = os.Stderr
+
+	if err := waitCmd.Run(); err != nil {
+		failed, message, statusErr := c.jobFailed(namespace, jobName)
+		if statusErr == nil && failed {
+			if message != "" {
+				return fmt.Errorf("job failed: %s", message)
+			}
+			return fmt.Errorf("job failed")
+		}
+		return fmt.Errorf("waiting for job completion: %w", err)
+	}
+
+	return nil
 }
 
 func (c *Client) ScaleDeployment(namespace, deployment string, replicas int) error {
@@ -197,4 +270,29 @@ func (c *Client) GetDeployments(labelSelector string) ([]string, error) {
 func (c *Client) IsConnected() bool {
 	cmd := c.kubectl("cluster-info")
 	return cmd.Run() == nil
+}
+
+func (c *Client) jobFailed(namespace, jobName string) (bool, string, error) {
+	cmd := c.kubectl("get", "job", jobName, "-n", namespace,
+		"-o", `jsonpath={.status.conditions[?(@.type=="Failed")].status}:{.status.conditions[?(@.type=="Failed")].message}`)
+	out, err := cmd.Output()
+	if err != nil {
+		return false, "", err
+	}
+
+	result := strings.TrimSpace(string(out))
+	if result == "" {
+		return false, "", nil
+	}
+
+	parts := strings.SplitN(result, ":", 2)
+	if parts[0] != "True" {
+		return false, "", nil
+	}
+
+	if len(parts) == 2 {
+		return true, strings.TrimSpace(parts[1]), nil
+	}
+
+	return true, "", nil
 }

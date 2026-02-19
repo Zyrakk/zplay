@@ -100,6 +100,9 @@ func (t *Terraria) RenderManifests(cfg *games.ServerConfig) ([]string, error) {
 		"service.yaml",
 		"ingress.yaml",
 	}
+	if cfg.AutoBackup {
+		templateFiles = append(templateFiles, "cronjob-backup.yaml")
+	}
 
 	var manifests []string
 
@@ -125,6 +128,55 @@ func (t *Terraria) RenderManifests(cfg *games.ServerConfig) ([]string, error) {
 		}
 	}
 	return filtered, nil
+}
+
+func (t *Terraria) RenderBackupJob(cfg *games.ServerConfig) (string, error) {
+	if cfg.Name == "" {
+		return "", fmt.Errorf("server name is required")
+	}
+	if cfg.Timestamp == "" {
+		return "", fmt.Errorf("backup timestamp is required")
+	}
+
+	cfg.Game = t.Name()
+
+	tmpl, err := template.ParseFS(templates, "templates/backup-job.yaml")
+	if err != nil {
+		return "", fmt.Errorf("parsing template backup-job.yaml: %w", err)
+	}
+
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, cfg); err != nil {
+		return "", fmt.Errorf("executing template backup-job.yaml: %w", err)
+	}
+
+	return buf.String(), nil
+}
+
+func (t *Terraria) RenderRestoreJob(cfg *games.ServerConfig) (string, error) {
+	if cfg.Name == "" {
+		return "", fmt.Errorf("server name is required")
+	}
+	if cfg.Timestamp == "" {
+		return "", fmt.Errorf("restore timestamp is required")
+	}
+	if cfg.BackupFile == "" {
+		return "", fmt.Errorf("backup file is required")
+	}
+
+	cfg.Game = t.Name()
+
+	tmpl, err := template.ParseFS(templates, "templates/restore-job.yaml")
+	if err != nil {
+		return "", fmt.Errorf("parsing template restore-job.yaml: %w", err)
+	}
+
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, cfg); err != nil {
+		return "", fmt.Errorf("executing template restore-job.yaml: %w", err)
+	}
+
+	return buf.String(), nil
 }
 
 func (t *Terraria) GetDeploymentName(serverName string) string {
