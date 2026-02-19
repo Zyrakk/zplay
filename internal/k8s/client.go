@@ -27,6 +27,28 @@ func (c *Client) kubectl(args ...string) *exec.Cmd {
 	return cmd
 }
 
+func (c *Client) zcloudK(args ...string) *exec.Cmd {
+	zcloudArgs := append([]string{"k"}, args...)
+	cmd := exec.Command("zcloud", zcloudArgs...)
+	cmd.Env = append(os.Environ(), "KUBECONFIG="+c.kubeconfig)
+	return cmd
+}
+
+func (c *Client) preferZcloudExec() bool {
+	if !strings.Contains(c.kubeconfig, ".zcloud") {
+		return false
+	}
+	_, err := exec.LookPath("zcloud")
+	return err == nil
+}
+
+func (c *Client) execTransport(args ...string) *exec.Cmd {
+	if c.preferZcloudExec() {
+		return c.zcloudK(args...)
+	}
+	return c.kubectl(args...)
+}
+
 func (c *Client) Apply(manifest string) error {
 	cmd := c.kubectl("apply", "-f", "-")
 	cmd.Stdin = strings.NewReader(manifest)
@@ -60,6 +82,17 @@ func (c *Client) GetPodStatus(namespace string) (string, error) {
 		return "", err
 	}
 	return string(out), nil
+}
+
+func (c *Client) GetPodName(namespace, labelSelector string) (string, error) {
+	cmd := c.kubectl("get", "pods", "-n", namespace,
+		"-l", labelSelector,
+		"-o", "jsonpath={.items[0].metadata.name}")
+	out, err := cmd.Output()
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(out)), nil
 }
 
 func (c *Client) WaitForReady(namespace, deployment string, timeoutSeconds int) error {
@@ -97,7 +130,7 @@ func (c *Client) GetReplicas(namespace, deployment string) (int, error) {
 }
 
 func (c *Client) AttachConsole(namespace, deployment string) error {
-	cmd := c.kubectl("attach", "-it",
+	cmd := c.execTransport("attach", "-it",
 		fmt.Sprintf("deployment/%s", deployment),
 		"-n", namespace)
 	cmd.Stdin = os.Stdin
@@ -123,8 +156,20 @@ func (c *Client) Exec(namespace, deployment string, command []string) error {
 		"-n", namespace, "--"}
 	args = append(args, command...)
 
-	cmd := c.kubectl(args...)
+	cmd := c.execTransport(args...)
 	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+func (c *Client) ExecNoTTY(namespace, deployment string, command []string) error {
+	args := []string{"exec",
+		fmt.Sprintf("deployment/%s", deployment),
+		"-n", namespace, "--"}
+	args = append(args, command...)
+
+	cmd := c.execTransport(args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()

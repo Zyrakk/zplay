@@ -73,29 +73,6 @@ func RunDeploy(cfg *config.Config) error {
 		return fmt.Errorf("server '%s' already exists", name)
 	}
 
-	// Node selection
-	fmt.Println("\nSelect node:")
-	fmt.Println("  1) oracle1 (24GB RAM) - recommended")
-	fmt.Println("  2) oracle2 (24GB RAM)")
-	fmt.Println("  3) raspberry (8GB RAM) - light servers only")
-	fmt.Println("  4) Auto (scheduler decides)")
-	fmt.Print("Choice [1]: ")
-	nodeChoice, _ := reader.ReadString('\n')
-	nodeChoice = strings.TrimSpace(nodeChoice)
-
-	switch nodeChoice {
-	case "1":
-		serverCfg.NodeSelector = "oracle1"
-	case "2":
-		serverCfg.NodeSelector = "oracle2"
-	case "3":
-		serverCfg.NodeSelector = "raspberry"
-	case "", "4":
-		serverCfg.NodeSelector = ""
-	default:
-		return fmt.Errorf("invalid node selection")
-	}
-
 	// Game-specific options
 	switch game.Name() {
 	case "terraria":
@@ -111,14 +88,48 @@ func RunDeploy(cfg *config.Config) error {
 			serverCfg.Variant = "vanilla"
 		case "2":
 			serverCfg.Variant = "tmodloader"
-			fmt.Println(dimStyle.Render("tModLoader requires x86; node is forced to lake."))
-			// tModLoader image is x86-only; force scheduling on lake.
-			serverCfg.NodeSelector = "lake"
-			// tModLoader defaults: 4Gi request, 6Gi limit
+			// tModLoader defaults: 4Gi request, 8Gi limit
 			serverCfg.Memory = "4Gi"
-			serverCfg.MemoryLimit = "6Gi"
+			serverCfg.MemoryLimit = "8Gi"
 		default:
 			return fmt.Errorf("invalid server type selection")
+		}
+	}
+
+	// Node selection
+	if game.Name() == "terraria" && serverCfg.Variant == "tmodloader" {
+		fmt.Println("\nSelect node:")
+		fmt.Println("  1) lake (16GB RAM, x86) - required for tModLoader")
+		fmt.Print("Choice [1]: ")
+		nodeChoice, _ := reader.ReadString('\n')
+		nodeChoice = strings.TrimSpace(nodeChoice)
+		switch nodeChoice {
+		case "", "1":
+			serverCfg.NodeSelector = "lake"
+		default:
+			return fmt.Errorf("invalid node selection")
+		}
+	} else {
+		fmt.Println("\nSelect node:")
+		fmt.Println("  1) oracle1 (24GB RAM) - recommended")
+		fmt.Println("  2) oracle2 (24GB RAM)")
+		fmt.Println("  3) raspberry (8GB RAM) - light servers only")
+		fmt.Println("  4) Auto (scheduler decides)")
+		fmt.Print("Choice [1]: ")
+		nodeChoice, _ := reader.ReadString('\n')
+		nodeChoice = strings.TrimSpace(nodeChoice)
+
+		switch nodeChoice {
+		case "1":
+			serverCfg.NodeSelector = "oracle1"
+		case "2":
+			serverCfg.NodeSelector = "oracle2"
+		case "3":
+			serverCfg.NodeSelector = "raspberry"
+		case "", "4":
+			serverCfg.NodeSelector = ""
+		default:
+			return fmt.Errorf("invalid node selection")
 		}
 	}
 
@@ -229,7 +240,7 @@ func RunDeploy(cfg *config.Config) error {
 	fmt.Println(dimStyle.Render("─────────────────────────────"))
 	fmt.Printf("Game:        %s\n", game.DisplayName())
 	if serverCfg.Variant != "" {
-		fmt.Printf("Variant:     %s\n", serverCfg.Variant)
+		fmt.Printf("Type:        %s\n", serverCfg.Variant)
 	}
 	fmt.Printf("Server:      %s\n", serverCfg.Name)
 	if serverCfg.NodeSelector != "" {
@@ -290,10 +301,45 @@ func RunDeploy(cfg *config.Config) error {
 		printSuccess("Server is ready!")
 	}
 
+	if serverCfg.Variant == "tmodloader" {
+		podName := ""
+		for i := 0; i < 6; i++ {
+			resolvedPodName, _ := client.GetPodName(namespace, "app=zplay,server="+serverCfg.Name)
+			if resolvedPodName != "" {
+				podName = resolvedPodName
+				break
+			}
+			time.Sleep(5 * time.Second)
+		}
+		if podName == "" {
+			podName = "<pod-name>"
+		}
+
+		fmt.Println()
+		fmt.Println(dimStyle.Render("─────────────────────────────────────"))
+		fmt.Println(dimStyle.Render("To install mods:"))
+		fmt.Println()
+		fmt.Println(dimStyle.Render("  Method 1 — Workshop IDs (recommended):"))
+		fmt.Println(dimStyle.Render("    Edit the deployment env vars to add Workshop mod IDs:"))
+		fmt.Println(dimStyle.Render(fmt.Sprintf("    kubectl set env deployment/%s-terraria -n zplay-%s \\", serverCfg.Name, serverCfg.Name)))
+		fmt.Println(dimStyle.Render("      TMOD_AUTODOWNLOAD=\"2824688072,2824688804\" \\"))
+		fmt.Println(dimStyle.Render("      TMOD_ENABLEDMODS=\"2824688072,2824688804\""))
+		fmt.Println(dimStyle.Render("    The pod will restart and download mods automatically."))
+		fmt.Println()
+		fmt.Println(dimStyle.Render("  Method 2 — Manual copy:"))
+		fmt.Println(dimStyle.Render(fmt.Sprintf("    kubectl cp ./ModName.tmod zplay-%s/%s:/data/tModLoader/Mods/", serverCfg.Name, podName)))
+		fmt.Println(dimStyle.Render(fmt.Sprintf("    Then restart: zplay stop %s && zplay start %s", serverCfg.Name, serverCfg.Name)))
+		fmt.Println()
+		fmt.Println(dimStyle.Render("  Mod data is stored in /data/ (persisted via PVC)."))
+		// TODO: Add a dedicated `zplay mods` command to automate tModLoader mod management.
+		fmt.Println(dimStyle.Render("─────────────────────────────────────"))
+	}
+
 	// Save state
 	state.Add(config.ServerInfo{
 		Name:       serverCfg.Name,
 		Game:       game.Name(),
+		Variant:    serverCfg.Variant,
 		Node:       serverCfg.NodeSelector,
 		Port:       serverCfg.Port,
 		Memory:     serverCfg.Memory,

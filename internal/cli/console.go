@@ -57,12 +57,64 @@ func RunConsole(cfg *config.Config) error {
 
 	namespace := game.GetNamespace(srv.Name)
 	deployment := game.GetDeploymentName(srv.Name)
+	client := k8s.NewClient(cfg)
+
+	if srv.Variant == "tmodloader" {
+		fmt.Println()
+		fmt.Println("Console type:")
+		fmt.Println("  1) Send commands (via inject)")
+		fmt.Println("  2) View live output (tmux attach)")
+		fmt.Print("Choice [1]: ")
+		consoleChoice, _ := reader.ReadString('\n')
+		consoleChoice = strings.TrimSpace(consoleChoice)
+
+		if consoleChoice == "2" {
+			fmt.Println()
+			printInfo("Attaching to tmux session... Press Ctrl+B then D to detach.")
+			fmt.Println()
+			if err := client.Exec(namespace, deployment, []string{"tmux", "attach"}); err != nil {
+				printWarning("tmux attach failed: " + err.Error())
+				printInfo("Falling back to live deployment logs...")
+				return client.Logs(namespace, deployment, true)
+			}
+			return nil
+		}
+
+		fmt.Println()
+		printInfo(fmt.Sprintf("Connected to %s tModLoader console.", srv.Name))
+		printInfo("Type commands and press Enter. Type 'exit' to quit.")
+		fmt.Println()
+
+		scanner := bufio.NewScanner(os.Stdin)
+		for {
+			fmt.Print("> ")
+			if !scanner.Scan() {
+				break
+			}
+			command := strings.TrimSpace(scanner.Text())
+			if command == "" {
+				continue
+			}
+			if command == "exit" || command == "quit" {
+				break
+			}
+
+			if err := client.ExecNoTTY(namespace, deployment, []string{"inject", command}); err != nil {
+				fmt.Printf("Error: %v\n", err)
+			}
+		}
+		return nil
+	}
 
 	fmt.Println()
 	printInfo(fmt.Sprintf("Attaching to %s console...", srv.Name))
 	printInfo("Press Ctrl+P, Ctrl+Q to detach without stopping the server")
 	fmt.Println()
 
-	client := k8s.NewClient(cfg)
-	return client.AttachConsole(namespace, deployment)
+	if err := client.AttachConsole(namespace, deployment); err != nil {
+		printWarning("console attach failed: " + err.Error())
+		printInfo("Falling back to live deployment logs...")
+		return client.Logs(namespace, deployment, true)
+	}
+	return nil
 }

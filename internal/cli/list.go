@@ -27,7 +27,7 @@ func RunList(cfg *config.Config) error {
 	client := k8s.NewClient(cfg)
 
 	// Header
-	fmt.Printf("%-15s %-12s %-12s %-8s %-10s %-10s %s\n",
+	fmt.Printf("%-15s %-14s %-12s %-8s %-10s %-10s %s\n",
 		"NAME", "GAME", "NODE", "PORT", "MEMORY", "STATUS", "ADDRESS")
 	fmt.Println(dimStyle.Render("──────────────────────────────────────────────────────────────────────────────────────"))
 
@@ -65,10 +65,14 @@ func RunList(cfg *config.Config) error {
 		if node == "" {
 			node = "auto"
 		}
+		gameLabel := srv.Game
+		if srv.Game == "terraria" && srv.Variant == "tmodloader" {
+			gameLabel = "terraria-tmod"
+		}
 
-		fmt.Printf("%-15s %-12s %-12s %-8d %-10s %-10s %s\n",
+		fmt.Printf("%-15s %-14s %-12s %-8d %-10s %-10s %s\n",
 			srv.Name,
-			srv.Game,
+			gameLabel,
 			node,
 			srv.Port,
 			srv.Memory,

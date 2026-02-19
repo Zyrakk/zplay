@@ -28,38 +28,76 @@ spec:
       {{- end}}
       containers:
         - name: terraria
+          {{- if eq .Variant "tmodloader" }}
+          image: jacobsmile/tmodloader1.4:latest
+          {{- else }}
           image: hexlo/terraria-server-docker:latest
+          {{- end }}
           stdin: true
           tty: true
           volumeMounts:
             - name: data
-              mountPath: /root/.local/share/Terraria/Worlds
+              mountPath: {{ if eq .Variant "tmodloader" }}/data{{ else }}/root/.local/share/Terraria/Worlds{{ end }}
           ports:
             - name: game
               containerPort: 7777
               protocol: TCP
           env:
-            - name: autocreate
+            {{- if eq .Variant "tmodloader" }}
+            - name: TMOD_WORLDNAME
+              value: "{{.Name}}"
+            - name: TMOD_WORLDSIZE
               value: "{{.WorldSizeNum}}"
-            - name: DIFFICULTY
+            - name: TMOD_DIFFICULTY
               value: "{{if .Difficulty}}{{.Difficulty}}{{else}}0{{end}}"
-            - name: maxplayers
+            - name: TMOD_MAXPLAYERS
               value: "{{.MaxPlayers}}"
-            - name: port
+            - name: TMOD_PORT
               value: "7777"
-            - name: world
-              value: "/root/.local/share/Terraria/Worlds/{{.Name}}.wld"
-            {{- if .MOTD}}
-            - name: motd
-              value: "{{.MOTD}}"
-            {{- end}}
             {{- if .Password}}
-            - name: PASSWORD
+            - name: TMOD_PASS
               valueFrom:
                 secretKeyRef:
                   name: {{.Name}}-secret
                   key: password
             {{- end}}
+            {{- if .MOTD}}
+            - name: TMOD_MOTD
+              value: "{{.MOTD}}"
+            {{- end}}
+            {{- if .Mods}}
+            - name: TMOD_AUTODOWNLOAD
+              value: "{{- range $i, $mod := .Mods -}}{{- if $i}},{{end -}}{{ $mod }}{{- end -}}"
+            - name: TMOD_ENABLEDMODS
+              value: "{{- range $i, $mod := .Mods -}}{{- if $i}},{{end -}}{{ $mod }}{{- end -}}"
+            {{- end}}
+            - name: TMOD_SHUTDOWN_MESSAGE
+              value: "Server shutting down..."
+            - name: TMOD_AUTOSAVE_INTERVAL
+              value: "10"
+            {{- else }}
+            - name: world
+              value: "/root/.local/share/Terraria/Worlds/{{.Name}}.wld"
+            - name: autocreate
+              value: "{{.WorldSizeNum}}"
+            - name: difficulty
+              value: "{{if .Difficulty}}{{.Difficulty}}{{else}}0{{end}}"
+            - name: maxplayers
+              value: "{{.MaxPlayers}}"
+            - name: port
+              value: "7777"
+            {{- if .MOTD}}
+            - name: motd
+              value: "{{.MOTD}}"
+            {{- end}}
+            {{- if .Password}}
+            - name: password
+              valueFrom:
+                secretKeyRef:
+                  name: {{.Name}}-secret
+                  key: password
+            {{- end}}
+            {{- end }}
           resources:
             requests:
               memory: {{.Memory}}
@@ -70,15 +108,15 @@ spec:
           livenessProbe:
             tcpSocket:
               port: 7777
-            initialDelaySeconds: 120
+            initialDelaySeconds: {{ if eq .Variant "tmodloader" }}300{{ else }}120{{ end }}
             periodSeconds: 30
-            failureThreshold: 3
+            failureThreshold: {{ if eq .Variant "tmodloader" }}5{{ else }}3{{ end }}
           readinessProbe:
             tcpSocket:
               port: 7777
-            initialDelaySeconds: 60
-            periodSeconds: 10
-            failureThreshold: 3
+            initialDelaySeconds: {{ if eq .Variant "tmodloader" }}180{{ else }}60{{ end }}
+            periodSeconds: {{ if eq .Variant "tmodloader" }}15{{ else }}10{{ end }}
+            failureThreshold: {{ if eq .Variant "tmodloader" }}5{{ else }}3{{ end }}
       volumes:
         - name: data
           persistentVolumeClaim:
