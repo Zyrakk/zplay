@@ -27,14 +27,14 @@ func RunStartStop(cfg *config.Config) error {
 		return nil
 	}
 
-	client := k8s.NewClient(cfg)
+	client := k8s.NewClient(cfg.Kubeconfig)
 
 	fmt.Println("Select server:")
 	for i, srv := range state.Servers {
 		status := "Unknown"
 		game := games.Get(srv.Game)
 		if game != nil {
-			namespace := game.GetNamespace(srv.Name)
+			namespace := resolveNamespace(srv, game)
 			deployment := game.GetDeploymentName(srv.Name)
 			replicas, err := client.GetReplicas(namespace, deployment)
 			if err == nil {
@@ -70,7 +70,7 @@ func RunStartStop(cfg *config.Config) error {
 		return fmt.Errorf("unknown game: %s", srv.Game)
 	}
 
-	namespace := game.GetNamespace(srv.Name)
+	namespace := resolveNamespace(srv, game)
 	deployment := game.GetDeploymentName(srv.Name)
 
 	replicas, err := client.GetReplicas(namespace, deployment)

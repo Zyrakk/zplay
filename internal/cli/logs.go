@@ -61,7 +61,7 @@ func RunLogs(cfg *config.Config) error {
 		return fmt.Errorf("unknown game: %s", srv.Game)
 	}
 
-	namespace := game.GetNamespace(srv.Name)
+	namespace := resolveNamespace(srv, game)
 	deployment := game.GetDeploymentName(srv.Name)
 
 	fmt.Println()
@@ -72,6 +72,6 @@ func RunLogs(cfg *config.Config) error {
 	}
 	fmt.Println()
 
-	client := k8s.NewClient(cfg)
+	client := k8s.NewClient(cfg.Kubeconfig)
 	return client.Logs(namespace, deployment, follow)
 }

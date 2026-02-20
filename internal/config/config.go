@@ -3,6 +3,9 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"sort"
+
+	"github.com/Zyrakk/zplay/internal/k8s"
 
 	"gopkg.in/yaml.v3"
 )
@@ -21,6 +24,7 @@ type ServerState struct {
 type ServerInfo struct {
 	Name       string `yaml:"name"`
 	Game       string `yaml:"game"`
+	Namespace  string `yaml:"namespace,omitempty"`
 	Variant    string `yaml:"variant,omitempty"`
 	AutoBackup bool   `yaml:"auto_backup,omitempty"`
 	Node       string `yaml:"node"`
@@ -124,6 +128,51 @@ func (s *ServerState) Remove(name string) bool {
 		}
 	}
 	return false
+}
+
+func Reconcile(state *ServerState, discovered []k8s.DiscoveredServer) (added []string, orphaned []string) {
+	localByName := make(map[string]struct{}, len(state.Servers))
+	addedByName := make(map[string]struct{})
+	orphanedByName := make(map[string]struct{})
+	for _, srv := range state.Servers {
+		if srv.Name == "" {
+			continue
+		}
+		localByName[srv.Name] = struct{}{}
+	}
+
+	discoveredByName := make(map[string]struct{}, len(discovered))
+	for _, srv := range discovered {
+		if srv.Name == "" {
+			continue
+		}
+		discoveredByName[srv.Name] = struct{}{}
+		if _, exists := localByName[srv.Name]; !exists {
+			if _, alreadyAdded := addedByName[srv.Name]; alreadyAdded {
+				continue
+			}
+			added = append(added, srv.Name)
+			addedByName[srv.Name] = struct{}{}
+		}
+	}
+
+	for _, srv := range state.Servers {
+		if srv.Name == "" {
+			continue
+		}
+		if _, exists := discoveredByName[srv.Name]; !exists {
+			if _, alreadyOrphaned := orphanedByName[srv.Name]; alreadyOrphaned {
+				continue
+			}
+			orphaned = append(orphaned, srv.Name)
+			orphanedByName[srv.Name] = struct{}{}
+		}
+	}
+
+	sort.Strings(added)
+	sort.Strings(orphaned)
+
+	return added, orphaned
 }
 
 func (s *ServerState) Get(name string) *ServerInfo {

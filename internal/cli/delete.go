@@ -68,13 +68,13 @@ func RunDelete(cfg *config.Config) error {
 		return fmt.Errorf("unknown game: %s", srv.Game)
 	}
 
-	namespace := game.GetNamespace(srv.Name)
+	namespace := resolveNamespace(srv, game)
 
 	// Delete
 	fmt.Println()
 	printInfo("Deleting namespace " + namespace + "...")
 
-	client := k8s.NewClient(cfg)
+	client := k8s.NewClient(cfg.Kubeconfig)
 	if err := client.DeleteNamespace(namespace); err != nil {
 		return fmt.Errorf("deleting namespace: %w", err)
 	}

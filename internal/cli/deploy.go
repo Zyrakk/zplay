@@ -296,7 +296,7 @@ func RunDeploy(cfg *config.Config) error {
 		return fmt.Errorf("rendering manifests: %w", err)
 	}
 
-	client := k8s.NewClient(cfg)
+	client := k8s.NewClient(cfg.Kubeconfig)
 
 	printInfo("Applying to cluster...")
 	if err := client.ApplyAll(manifests); err != nil {
@@ -355,6 +355,7 @@ func RunDeploy(cfg *config.Config) error {
 	state.Add(config.ServerInfo{
 		Name:       serverCfg.Name,
 		Game:       game.Name(),
+		Namespace:  namespace,
 		Variant:    serverCfg.Variant,
 		AutoBackup: serverCfg.AutoBackup,
 		Node:       serverCfg.NodeSelector,

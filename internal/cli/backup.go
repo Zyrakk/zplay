@@ -81,9 +81,9 @@ func RunBackup(cfg *config.Config) error {
 		return fmt.Errorf("rendering backup job: %w", err)
 	}
 
-	namespace := game.GetNamespace(srv.Name)
+	namespace := resolveNamespace(srv, game)
 	jobName := fmt.Sprintf("%s-backup-%s", srv.Name, timestamp)
-	client := k8s.NewClient(cfg)
+	client := k8s.NewClient(cfg.Kubeconfig)
 
 	printInfo("Creating backup job...")
 	if err := client.RunBackupJob(namespace, jobName, jobManifest, 120); err != nil {

@@ -53,9 +53,9 @@ func RunRestore(cfg *config.Config) error {
 		return fmt.Errorf("unknown game: %s", srv.Game)
 	}
 
-	namespace := game.GetNamespace(srv.Name)
+	namespace := resolveNamespace(srv, game)
 	deployment := game.GetDeploymentName(srv.Name)
-	client := k8s.NewClient(cfg)
+	client := k8s.NewClient(cfg.Kubeconfig)
 
 	printInfo("Listing available backups...")
 	listJobSuffix := time.Now().Format("20060102-150405")

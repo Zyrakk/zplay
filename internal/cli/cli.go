@@ -56,6 +56,7 @@ func initialMenuModel(cfg *config.Config) menuModel {
 			"Deploy server",
 			"List servers",
 			"Start/Stop server",
+			"Server status",
 			"Backup server",
 			"Restore backup",
 			"Delete server",
@@ -113,7 +114,7 @@ func (m menuModel) View() string {
 
 func Run(cfg *config.Config) error {
 	// Check kubernetes connection
-	client := k8s.NewClient(cfg)
+	client := k8s.NewClient(cfg.Kubeconfig)
 	if !client.IsConnected() {
 		fmt.Println(errorStyle.Render("✗ Cannot connect to Kubernetes cluster"))
 		fmt.Println(dimStyle.Render("  Make sure you're logged in with: zcloud login"))
@@ -140,6 +141,8 @@ func Run(cfg *config.Config) error {
 			actionErr = RunList(cfg)
 		case "Start/Stop server":
 			actionErr = RunStartStop(cfg)
+		case "Server status":
+			actionErr = RunStatus(cfg, "")
 		case "Backup server":
 			actionErr = RunBackup(cfg)
 		case "Restore backup":
