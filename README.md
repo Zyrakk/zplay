@@ -1,24 +1,25 @@
 # ZPlay
 
-ZPlay is an interactive CLI to deploy and operate game servers on Kubernetes (k3s).
+ZPlay is a CLI to deploy and operate game servers on Kubernetes (k3s).
 
 ## Project Status
 
-Current status (February 16, 2026):
+Current status (February 20, 2026):
 
 - Phase 0 - Foundation: completed.
-  - Project compiles and deploys Terraria vanilla successfully.
 - Phase 1 - Robustness: completed.
-  - Node selection in deploy flow.
-  - Deploy validations (name, port, memory, node limits).
-  - Passwords moved to Kubernetes Secrets.
-  - Start/Stop servers without deleting data.
-  - Terraria difficulty selection (Classic/Expert/Master/Journey).
-- Phase 2+ (mods, backups, Minecraft expansion): planned in `docs/roadmap.md`.
+- Phase 2 - Terraria variants (including tModLoader): completed.
+- Phase 3 - Backups and restore: completed.
+- Phase 4 - Usability: completed.
+  - Cluster reconciliation on `list` (adopt/cleanup local state).
+  - Direct subcommands with flags (`deploy`, `list`, `delete`, `start`, `stop`, `backup`, `status`).
+  - Detailed per-server status view.
+- Phase 5 (Minecraft): planned in `docs/roadmap.md`.
 
 ## Supported Games
 
 - Terraria (vanilla): stable.
+- Terraria (tModLoader): supported (requires x86 node `lake`).
 - Minecraft: not implemented yet.
 
 ## Requirements
@@ -79,80 +80,62 @@ zplay
 
 By default, ZPlay reads kubeconfig from `~/.zcloud/kubeconfig`.
 
-## Main Menu
+## Usage Modes
+
+### Interactive mode (default)
+
+```bash
+zplay
+```
+
+Main menu:
 
 ```text
 Deploy server
 List servers
-Delete server
 Start/Stop server
+Server status
+Backup server
+Restore backup
+Delete server
 Server console
 View logs
 Exit
 ```
 
-## Deploy Flow (Terraria)
+### Direct mode (subcommands)
 
-Deploy prompts include:
+```bash
+zplay version
+zplay deploy --game terraria --variant vanilla --name myserver --memory 4Gi --node oracle1 --port 7777 [--password xxx] [--max-players 8] [--world-size medium] [--difficulty 0] [--auto-backup]
+zplay list [--json]
+zplay delete <name> --yes
+zplay stop <name>
+zplay start <name>
+zplay backup <name>
+zplay status <name>
+```
 
-1. Server name
-2. Node selection
-   - `oracle1`
-   - `oracle2`
-   - `raspberry`
-   - `Auto`
-3. Server type (vanilla / tModLoader selector present)
-4. Memory
-5. World size
-6. Difficulty
-   - Classic (`0`)
-   - Expert (`1`)
-   - Master (`2`)
-   - Journey (`3`)
-7. Max players
-8. Optional password
-9. Port
+## Reconciliation
 
-Pre-deploy summary shows selected node, world size, difficulty, and other settings.
+`List servers` (interactive) reconciles local state (`~/.zplay/servers.yaml`) with the cluster by discovering deployments labeled `app=zplay`.
 
-## Phase 1 Validations
+- Servers found in cluster but missing locally can be adopted.
+- Servers present locally but missing in cluster can be cleaned.
 
-Before deploy confirmation, ZPlay validates:
+TODO: non-interactive sync mode (`zplay list --sync`) is not implemented yet.
 
-- Name must be RFC1123-compatible (`2-20` chars, lowercase, digits, `-`)
-- Port must be allowed for the game entrypoints
-  - Terraria: `7777`, `7778`
-- Port must not already be used by another server
-- Memory format must match `^\d+[GM]i$` (examples: `4Gi`, `512Mi`)
-- `raspberry` node max memory is `4Gi`
+## Detailed Status
 
-## Password Handling (Kubernetes Secrets)
+`zplay status <name>` (or interactive `Server status`) shows:
 
-When a password is provided:
+- Server metadata (game, variant, created date, public address)
+- Runtime state (status, node, uptime)
+- Resources (CPU/memory usage when metrics-server is available, request/limit)
+- Storage info (PVC)
+- Backup info (auto-backup enabled/disabled, last backup timestamp)
 
-- ZPlay creates a Secret: `<server>-secret`
-- Deployment references password via `valueFrom.secretKeyRef`
-- Password is not stored as plaintext env value in Deployment manifests
-
-When password is empty:
-
-- No Secret is rendered/applied.
-
-## Start/Stop Without Deletion
-
-`Start/Stop server` scales deployment replicas:
-
-- Running server -> Stop -> replicas `0`
-- Stopped server -> Start -> replicas `1` and wait for readiness
-
-PVC/world data is preserved because namespace/PVC are not deleted.
-
-## List Output
-
-`List servers` includes:
-
-- `NODE` column (`oracle1`, `oracle2`, `raspberry`, or `auto`)
-- Real status, including `Stopped` when deployment replicas are `0`
+Unavailable metrics are displayed as `N/A` without failing the command.
 
 ## Traefik EntryPoints
 
@@ -177,6 +160,22 @@ data_path: ~/.zplay
 ```
 
 Server state is stored in `~/.zplay/servers.yaml`.
+
+Example:
+
+```yaml
+servers:
+  - name: vanilla
+    game: terraria
+    namespace: zplay-vanilla
+    variant: vanilla
+    auto_backup: true
+    node: oracle1
+    port: 7777
+    memory: 4Gi
+    max_players: 8
+    created_at: "2025-01-15T10:30:00Z"
+```
 
 ## Development
 
