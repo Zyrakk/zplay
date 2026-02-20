@@ -78,7 +78,11 @@ kubectl --kubeconfig "$HOME/.zcloud/kubeconfig" get nodes
 zplay
 ```
 
-By default, ZPlay reads kubeconfig from `~/.zcloud/kubeconfig`.
+By default, ZPlay resolves kubeconfig in this order:
+1. `kubeconfig` in `~/.zplay/config.yaml` (if explicitly set and not the legacy default)
+2. `$KUBECONFIG`
+3. `~/.kube/config`
+4. `~/.zcloud/kubeconfig` (legacy fallback)
 
 ## Usage Modes
 

@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/Zyrakk/zplay/internal/k8s"
 
@@ -38,7 +39,7 @@ func defaultConfig() *Config {
 	home, _ := os.UserHomeDir()
 	return &Config{
 		Domain:       "play.zyrak.cloud",
-		Kubeconfig:   filepath.Join(home, ".zcloud", "kubeconfig"),
+		Kubeconfig:   resolveKubeconfig("", home),
 		NodeSelector: "",
 		DataPath:     filepath.Join(home, ".zplay"),
 	}
@@ -68,6 +69,7 @@ func Load() (*Config, error) {
 	if err := yaml.Unmarshal(data, cfg); err != nil {
 		return nil, err
 	}
+	cfg.Kubeconfig = resolveKubeconfig(cfg.Kubeconfig, home)
 
 	return cfg, nil
 }
@@ -192,4 +194,96 @@ func (s *ServerState) NextPort(game string, basePort int) int {
 		}
 	}
 	return maxPort + 1
+}
+
+func resolveKubeconfig(configuredValue, home string) string {
+	legacyDefault := filepath.Join(home, ".zcloud", "kubeconfig")
+	configured := normalizeKubeconfigValue(configuredValue, home)
+
+	// Keep explicit non-empty user configuration even if the file doesn't exist.
+	if configured != "" && !isLegacyDefaultKubeconfig(configured, home) {
+		return configured
+	}
+
+	// Keep legacy default only when present; otherwise continue fallback chain.
+	if configured != "" && fileExistsAny(configured) {
+		return configured
+	}
+
+	if envKubeconfig := normalizeKubeconfigValue(os.Getenv("KUBECONFIG"), home); envKubeconfig != "" {
+		return envKubeconfig
+	}
+
+	homeKubeconfig := filepath.Join(home, ".kube", "config")
+	if fileExistsAny(homeKubeconfig) {
+		return homeKubeconfig
+	}
+
+	if fileExistsAny(legacyDefault) {
+		return legacyDefault
+	}
+
+	// Preserve backward-compatible final fallback.
+	return legacyDefault
+}
+
+func normalizeKubeconfigValue(value, home string) string {
+	if strings.TrimSpace(value) == "" {
+		return ""
+	}
+
+	parts := strings.Split(value, string(os.PathListSeparator))
+	normalized := make([]string, 0, len(parts))
+	for _, part := range parts {
+		path := expandPath(part, home)
+		if path == "" {
+			continue
+		}
+		normalized = append(normalized, path)
+	}
+
+	if len(normalized) == 0 {
+		return ""
+	}
+	return strings.Join(normalized, string(os.PathListSeparator))
+}
+
+func expandPath(value, home string) string {
+	path := strings.TrimSpace(value)
+	if path == "" {
+		return ""
+	}
+
+	if path == "~" {
+		path = home
+	} else if strings.HasPrefix(path, "~/") {
+		path = filepath.Join(home, strings.TrimPrefix(path, "~/"))
+	}
+
+	return os.ExpandEnv(path)
+}
+
+func fileExistsAny(value string) bool {
+	parts := strings.Split(value, string(os.PathListSeparator))
+	for _, part := range parts {
+		path := strings.TrimSpace(part)
+		if path == "" {
+			continue
+		}
+		info, err := os.Stat(path)
+		if err == nil && !info.IsDir() {
+			return true
+		}
+	}
+	return false
+}
+
+func isLegacyDefaultKubeconfig(value, home string) bool {
+	parts := strings.Split(value, string(os.PathListSeparator))
+	if len(parts) != 1 {
+		return false
+	}
+
+	legacyDefault := filepath.Clean(filepath.Join(home, ".zcloud", "kubeconfig"))
+	return filepath.Clean(strings.TrimSpace(parts[0])) == legacyDefault
 }
