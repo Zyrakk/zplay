@@ -221,6 +221,32 @@ func (c *Client) GetReplicas(namespace, deployment string) (int, error) {
 	return replicas, nil
 }
 
+func (c *Client) GetServicePort(namespace, labelSelector string) (int, error) {
+	args := []string{"get", "svc", "-n", namespace}
+	if strings.TrimSpace(labelSelector) != "" {
+		args = append(args, "-l", labelSelector)
+	}
+	args = append(args, "-o", "jsonpath={.items[0].spec.ports[0].port}")
+
+	cmd := c.kubectl(args...)
+	out, err := cmd.Output()
+	if err != nil {
+		return 0, err
+	}
+
+	result := cleanJSONPathValue(string(out))
+	if result == "" {
+		return 0, fmt.Errorf("service port not found")
+	}
+
+	port, err := strconv.Atoi(result)
+	if err != nil {
+		return 0, err
+	}
+
+	return port, nil
+}
+
 func (c *Client) GetPodNodeName(namespace, labelSelector string) (string, error) {
 	return c.getPodField(namespace, labelSelector, "jsonpath={.items[0].spec.nodeName}")
 }

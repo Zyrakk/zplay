@@ -38,6 +38,12 @@ func RunList(cfg *config.Config) error {
 		added, orphaned := config.Reconcile(state, discovered)
 		stateChanged := false
 
+		updated := syncTrackedServerState(state, discoveredByName, client)
+		if updated > 0 {
+			stateChanged = true
+			printInfo(fmt.Sprintf("Updated local metadata from cluster for %d server(s).", updated))
+		}
+
 		if len(added) > 0 {
 			fmt.Println(warningStyle.Render(fmt.Sprintf("⚠ Found %d server(s) in cluster not tracked locally:", len(added))))
 			for _, name := range added {
@@ -57,7 +63,7 @@ func RunList(cfg *config.Config) error {
 						continue
 					}
 
-					state.Add(serverInfoFromDiscovered(state, srv))
+					state.Add(serverInfoFromDiscovered(state, client, srv))
 					adopted++
 				}
 
@@ -184,10 +190,27 @@ func promptYesNo(reader *bufio.Reader, prompt string) bool {
 	return choice != "n" && choice != "no"
 }
 
-func serverInfoFromDiscovered(state *config.ServerState, discovered k8s.DiscoveredServer) config.ServerInfo {
+func serverInfoFromDiscovered(state *config.ServerState, client *k8s.Client, discovered k8s.DiscoveredServer) config.ServerInfo {
 	port := 0
+	memory := "4Gi"
 	if game := games.Get(discovered.Game); game != nil {
 		port = state.NextPort(discovered.Game, game.DefaultPort())
+
+		namespace := discovered.Namespace
+		if namespace == "" {
+			namespace = game.GetNamespace(discovered.Name)
+		}
+
+		if clusterPort, err := client.GetServicePort(namespace, fmt.Sprintf("app=zplay,server=%s", discovered.Name)); err == nil && clusterPort > 0 {
+			port = clusterPort
+		}
+
+		deployment := game.GetDeploymentName(discovered.Name)
+		if resources, err := client.GetDeploymentResources(namespace, deployment); err == nil {
+			if request := strings.TrimSpace(resources.MemoryRequest); request != "" {
+				memory = request
+			}
+		}
 	}
 
 	variant := ""
@@ -203,8 +226,60 @@ func serverInfoFromDiscovered(state *config.ServerState, discovered k8s.Discover
 		AutoBackup: false,
 		Node:       "",
 		Port:       port,
-		Memory:     "4Gi",
+		Memory:     memory,
 		MaxPlayers: 8,
 		CreatedAt:  time.Now().Format(time.RFC3339),
 	}
+}
+
+func syncTrackedServerState(state *config.ServerState, discoveredByName map[string]k8s.DiscoveredServer, client *k8s.Client) int {
+	updated := 0
+
+	for i := range state.Servers {
+		srv := &state.Servers[i]
+		discovered, ok := discoveredByName[srv.Name]
+		if !ok {
+			continue
+		}
+
+		game := games.Get(srv.Game)
+		if game == nil {
+			game = games.Get(discovered.Game)
+			if game == nil {
+				continue
+			}
+			srv.Game = discovered.Game
+		}
+
+		serverChanged := false
+
+		if srv.Namespace == "" && discovered.Namespace != "" {
+			srv.Namespace = discovered.Namespace
+			serverChanged = true
+		}
+
+		namespace := srv.Namespace
+		if namespace == "" {
+			namespace = game.GetNamespace(srv.Name)
+		}
+
+		if clusterPort, err := client.GetServicePort(namespace, fmt.Sprintf("app=zplay,server=%s", srv.Name)); err == nil && clusterPort > 0 && srv.Port != clusterPort {
+			srv.Port = clusterPort
+			serverChanged = true
+		}
+
+		deployment := game.GetDeploymentName(srv.Name)
+		if resources, err := client.GetDeploymentResources(namespace, deployment); err == nil {
+			if request := strings.TrimSpace(resources.MemoryRequest); request != "" && srv.Memory != request {
+				srv.Memory = request
+				serverChanged = true
+			}
+		}
+
+		if serverChanged {
+			updated++
+		}
+	}
+
+	return updated
 }
