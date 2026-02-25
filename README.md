@@ -1,10 +1,11 @@
 # ZPlay
 
 ZPlay is a CLI to deploy and operate game servers on Kubernetes (k3s).
+Current CLI version: `0.5.0`.
 
 ## Project Status
 
-Current status (February 20, 2026):
+Current status (February 25, 2026):
 
 - Phase 0 - Foundation: completed.
 - Phase 1 - Robustness: completed.
@@ -14,6 +15,11 @@ Current status (February 20, 2026):
   - Cluster reconciliation on `list` (adopt/cleanup local state).
   - Direct subcommands with flags (`deploy`, `list`, `delete`, `start`, `stop`, `backup`, `status`).
   - Detailed per-server status view.
+- Post-Phase 4 hardening (February 25, 2026):
+  - Terminal reset after Bubble Tea (`stty sane`) before executing actions.
+  - Terraria console attach via local `tmux` with clean detach (`Ctrl+B`, `D`) when available.
+  - `View logs` follow mode exits cleanly on `Ctrl+C`.
+  - Terraria deployment template uses `exec` probes (no TCP probe connection spam in logs on new deploys).
 - Phase 5 (Minecraft): planned in `docs/roadmap.md`.
 
 ## Supported Games
@@ -28,6 +34,7 @@ Current status (February 20, 2026):
 - `kubectl` configured against your cluster
 - Access to your Kubernetes cluster (`zcloud login` or direct kubeconfig)
 - Traefik with TCP entrypoints for game ports
+- `tmux` (optional, recommended for safe detach from `Server console`)
 
 ## Installation
 
