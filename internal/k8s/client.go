@@ -394,33 +394,55 @@ func (c *Client) AttachConsoleViaTmux(namespace, deployment string) error {
 	killCmd := exec.Command("tmux", "kill-session", "-t", sessionName)
 	_ = killCmd.Run()
 
-	attachArgs := []string{
+	newArgs := []string{
+		"new-session",
+		"-d",
+		"-s",
+		sessionName,
+	}
+	if c.kubeconfig != "" {
+		newArgs = append(newArgs, "-e", "KUBECONFIG="+c.kubeconfig)
+	}
+	newArgs = append(newArgs,
+		"kubectl",
 		"attach",
 		"-it",
 		fmt.Sprintf("deployment/%s", deployment),
-		"-n", namespace,
-	}
+		"-n", namespace)
 
-	var attachCmd string
-	if c.preferZcloudExec() {
-		attachCmd = "zcloud k " + strings.Join(attachArgs, " ")
-	} else {
-		attachCmd = "kubectl " + strings.Join(attachArgs, " ")
-	}
+	newCmd := exec.Command("tmux", newArgs...)
+	newCmd.Env = os.Environ()
 	if c.kubeconfig != "" {
-		attachCmd = fmt.Sprintf("KUBECONFIG=%s %s", c.kubeconfig, attachCmd)
+		newCmd.Env = append(newCmd.Env, "KUBECONFIG="+c.kubeconfig)
+	}
+	newCmd.Stderr = os.Stderr
+	if err := newCmd.Run(); err != nil {
+		return err
 	}
 
-	newCmd := exec.Command("tmux", "new-session", "-s", sessionName, attachCmd)
-	newCmd.Stdin = os.Stdin
-	newCmd.Stdout = os.Stdout
-	newCmd.Stderr = os.Stderr
-	err := newCmd.Run()
+	attachCmd := exec.Command("tmux", "attach-session", "-t", sessionName)
+	attachCmd.Stdin = os.Stdin
+	attachCmd.Stdout = os.Stdout
+	attachCmd.Stderr = os.Stderr
+	err := attachCmd.Run()
 
-	cleanupCmd := exec.Command("tmux", "kill-session", "-t", sessionName)
-	_ = cleanupCmd.Run()
+	sessionAlive := tmuxHasSession(sessionName)
+	if sessionAlive {
+		cleanupCmd := exec.Command("tmux", "kill-session", "-t", sessionName)
+		_ = cleanupCmd.Run()
+		return err
+	}
 
-	return err
+	if err != nil {
+		return err
+	}
+
+	return fmt.Errorf("tmux session exited before detach")
+}
+
+func tmuxHasSession(sessionName string) bool {
+	cmd := exec.Command("tmux", "has-session", "-t", sessionName)
+	return cmd.Run() == nil
 }
 
 func (c *Client) Logs(namespace, deployment string, follow bool) error {
