@@ -2,6 +2,8 @@ package cli
 
 import (
 	"fmt"
+	"os"
+	"os/exec"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -133,6 +135,8 @@ func Run(cfg *config.Config) error {
 			return nil
 		}
 
+		resetTerminal()
+
 		var actionErr error
 		switch model.selected {
 		case "Deploy server":
@@ -165,6 +169,12 @@ func Run(cfg *config.Config) error {
 		fmt.Print(dimStyle.Render("Press Enter to continue..."))
 		fmt.Scanln()
 	}
+}
+
+func resetTerminal() {
+	cmd := exec.Command("stty", "sane")
+	cmd.Stdin = os.Stdin
+	_ = cmd.Run()
 }
 
 func printSuccess(msg string) {

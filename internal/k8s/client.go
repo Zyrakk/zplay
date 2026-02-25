@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"os/signal"
 	"strconv"
 	"strings"
+	"syscall"
 )
 
 type Client struct {
@@ -360,6 +362,41 @@ func (c *Client) AttachConsole(namespace, deployment string) error {
 	return cmd.Run()
 }
 
+func (c *Client) AttachConsoleViaTmux(namespace, deployment string) error {
+	sessionName := fmt.Sprintf("zplay-%s", deployment)
+
+	killCmd := exec.Command("tmux", "kill-session", "-t", sessionName)
+	_ = killCmd.Run()
+
+	attachArgs := []string{
+		"attach",
+		"-it",
+		fmt.Sprintf("deployment/%s", deployment),
+		"-n", namespace,
+	}
+
+	var attachCmd string
+	if c.preferZcloudExec() {
+		attachCmd = "zcloud k " + strings.Join(attachArgs, " ")
+	} else {
+		attachCmd = "kubectl " + strings.Join(attachArgs, " ")
+	}
+	if c.kubeconfig != "" {
+		attachCmd = fmt.Sprintf("KUBECONFIG=%s %s", c.kubeconfig, attachCmd)
+	}
+
+	newCmd := exec.Command("tmux", "new-session", "-s", sessionName, attachCmd)
+	newCmd.Stdin = os.Stdin
+	newCmd.Stdout = os.Stdout
+	newCmd.Stderr = os.Stderr
+	err := newCmd.Run()
+
+	cleanupCmd := exec.Command("tmux", "kill-session", "-t", sessionName)
+	_ = cleanupCmd.Run()
+
+	return err
+}
+
 func (c *Client) Logs(namespace, deployment string, follow bool) error {
 	args := []string{"logs", fmt.Sprintf("deployment/%s", deployment), "-n", namespace}
 	if follow {
@@ -368,7 +405,42 @@ func (c *Client) Logs(namespace, deployment string, follow bool) error {
 	cmd := c.kubectl(args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	return cmd.Run()
+
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+
+	sigChan := make(chan os.Signal, 1)
+	done := make(chan struct{})
+	signaled := make(chan struct{}, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		select {
+		case <-sigChan:
+			select {
+			case signaled <- struct{}{}:
+			default:
+			}
+			if cmd.Process != nil {
+				_ = cmd.Process.Kill()
+			}
+		case <-done:
+		}
+	}()
+
+	err := cmd.Wait()
+	close(done)
+	signal.Stop(sigChan)
+
+	if err != nil {
+		select {
+		case <-signaled:
+			return nil
+		default:
+		}
+	}
+
+	return err
 }
 
 func (c *Client) Exec(namespace, deployment string, command []string) error {

@@ -106,14 +106,14 @@ spec:
               memory: {{.MemoryLimit}}
               cpu: "2"
           livenessProbe:
-            tcpSocket:
-              port: 7777
+            exec:
+              command: ["sh", "-c", "pgrep -f 'TerrariaServer|mono|dotnet|tModLoader' || exit 1"]
             initialDelaySeconds: {{ if eq .Variant "tmodloader" }}300{{ else }}120{{ end }}
             periodSeconds: 30
             failureThreshold: {{ if eq .Variant "tmodloader" }}5{{ else }}3{{ end }}
           readinessProbe:
-            tcpSocket:
-              port: 7777
+            exec:
+              command: ["sh", "-c", "pgrep -f 'TerrariaServer|mono|dotnet|tModLoader' || exit 1"]
             initialDelaySeconds: {{ if eq .Variant "tmodloader" }}180{{ else }}60{{ end }}
             periodSeconds: {{ if eq .Variant "tmodloader" }}15{{ else }}10{{ end }}
             failureThreshold: {{ if eq .Variant "tmodloader" }}5{{ else }}3{{ end }}
