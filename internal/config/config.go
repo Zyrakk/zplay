@@ -86,7 +86,7 @@ func Save(cfg *Config) error {
 		return err
 	}
 
-	return os.WriteFile(configPath, data, 0644)
+	return os.WriteFile(configPath, data, 0600)
 }
 
 func LoadServerState(cfg *Config) (*ServerState, error) {
@@ -115,7 +115,7 @@ func SaveServerState(cfg *Config, state *ServerState) error {
 		return err
 	}
 
-	return os.WriteFile(statePath, data, 0644)
+	return os.WriteFile(statePath, data, 0600)
 }
 
 func (s *ServerState) Add(server ServerInfo) {
