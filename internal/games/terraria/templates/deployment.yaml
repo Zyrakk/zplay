@@ -60,6 +60,9 @@ spec:
                 secretKeyRef:
                   name: {{.Name}}-secret
                   key: password
+            {{- else}}
+            - name: TMOD_PASS
+              value: ""
             {{- end}}
             {{- if .MOTD}}
             - name: TMOD_MOTD
