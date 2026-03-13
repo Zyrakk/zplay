@@ -16,7 +16,7 @@ func RunCleanup(cfg *config.Config) error {
 	fmt.Println()
 
 	client := k8s.NewClient(cfg.Kubeconfig)
-	pvs, err := client.GetReleasedPVs("app=zplay")
+	pvs, err := client.GetReleasedPVs()
 	if err != nil {
 		return fmt.Errorf("listing released PVs: %w", err)
 	}
@@ -28,7 +28,7 @@ func RunCleanup(cfg *config.Config) error {
 
 	fmt.Printf("Found %d orphaned PersistentVolume(s):\n\n", len(pvs))
 	for _, pv := range pvs {
-		fmt.Printf("  %s (%s)\n", pv.Name, pv.Size)
+		fmt.Printf("  %s (%s, %s)\n", pv.Name, pv.Size, pv.Namespace)
 	}
 	fmt.Println()
 
@@ -57,7 +57,7 @@ func RunCleanup(cfg *config.Config) error {
 
 func RunCleanupNonInteractive(cfg *config.Config, yes bool) error {
 	client := k8s.NewClient(cfg.Kubeconfig)
-	pvs, err := client.GetReleasedPVs("app=zplay")
+	pvs, err := client.GetReleasedPVs()
 	if err != nil {
 		return fmt.Errorf("listing released PVs: %w", err)
 	}
@@ -69,7 +69,7 @@ func RunCleanupNonInteractive(cfg *config.Config, yes bool) error {
 
 	fmt.Printf("Found %d orphaned PersistentVolume(s):\n", len(pvs))
 	for _, pv := range pvs {
-		fmt.Printf("  %s (%s)\n", pv.Name, pv.Size)
+		fmt.Printf("  %s (%s, %s)\n", pv.Name, pv.Size, pv.Namespace)
 	}
 
 	if !yes {

@@ -330,15 +330,14 @@ func (c *Client) GetPVCInfo(namespace string) (PVCInfo, error) {
 }
 
 type ReleasedPV struct {
-	Name string
-	Size string
+	Name      string
+	Size      string
+	Namespace string
 }
 
-func (c *Client) GetReleasedPVs(labelSelector string) ([]ReleasedPV, error) {
+func (c *Client) GetReleasedPVs() ([]ReleasedPV, error) {
 	cmd := c.kubectl("get", "pv",
-		"-l", labelSelector,
-		"--field-selector=status.phase=Released",
-		"-o", `jsonpath={range .items[*]}{.metadata.name},{.spec.capacity.storage}{"\n"}{end}`)
+		"-o", `jsonpath={range .items[?(@.status.phase=="Released")]}{.metadata.name},{.spec.capacity.storage},{.spec.claimRef.namespace}{"\n"}{end}`)
 	out, err := cmd.Output()
 	if err != nil {
 		return nil, err
@@ -358,14 +357,20 @@ func (c *Client) GetReleasedPVs(labelSelector string) ([]ReleasedPV, error) {
 			continue
 		}
 
-		parts := strings.SplitN(line, ",", 2)
-		if len(parts) != 2 {
+		parts := strings.SplitN(line, ",", 3)
+		if len(parts) != 3 {
+			continue
+		}
+
+		ns := strings.TrimSpace(parts[2])
+		if !strings.HasPrefix(ns, "zplay-") {
 			continue
 		}
 
 		pvs = append(pvs, ReleasedPV{
-			Name: strings.TrimSpace(parts[0]),
-			Size: strings.TrimSpace(parts[1]),
+			Name:      strings.TrimSpace(parts[0]),
+			Size:      strings.TrimSpace(parts[1]),
+			Namespace: ns,
 		})
 	}
 
