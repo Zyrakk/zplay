@@ -329,6 +329,56 @@ func (c *Client) GetPVCInfo(namespace string) (PVCInfo, error) {
 	}, nil
 }
 
+type ReleasedPV struct {
+	Name string
+	Size string
+}
+
+func (c *Client) GetReleasedPVs(labelSelector string) ([]ReleasedPV, error) {
+	cmd := c.kubectl("get", "pv",
+		"-l", labelSelector,
+		"--field-selector=status.phase=Released",
+		"-o", `jsonpath={range .items[*]}{.metadata.name},{.spec.capacity.storage}{"\n"}{end}`)
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, err
+	}
+
+	result := strings.TrimSpace(string(out))
+	if result == "" {
+		return nil, nil
+	}
+
+	lines := strings.Split(result, "\n")
+	pvs := make([]ReleasedPV, 0, len(lines))
+
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		parts := strings.SplitN(line, ",", 2)
+		if len(parts) != 2 {
+			continue
+		}
+
+		pvs = append(pvs, ReleasedPV{
+			Name: strings.TrimSpace(parts[0]),
+			Size: strings.TrimSpace(parts[1]),
+		})
+	}
+
+	return pvs, nil
+}
+
+func (c *Client) DeletePV(name string) error {
+	cmd := c.kubectl("delete", "pv", name)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
 func (c *Client) HasBackupCronJob(namespace string) (bool, error) {
 	cmd := c.kubectl("get", "cronjob", "-n", namespace,
 		"-o", "jsonpath={.items[*].metadata.name}")
