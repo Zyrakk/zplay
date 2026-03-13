@@ -64,6 +64,7 @@ func initialMenuModel(cfg *config.Config) menuModel {
 			"Delete server",
 			"Server console",
 			"View logs",
+			"Cleanup resources",
 			"Exit",
 		},
 		cfg: cfg,
@@ -157,6 +158,8 @@ func Run(cfg *config.Config) error {
 			actionErr = RunConsole(cfg)
 		case "View logs":
 			actionErr = RunLogs(cfg)
+		case "Cleanup resources":
+			actionErr = RunCleanup(cfg)
 		case "Exit":
 			return nil
 		}

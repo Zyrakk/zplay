@@ -46,6 +46,8 @@ func main() {
 		actionErr = runBackupCommand(cfg, os.Args[2:])
 	case "status":
 		actionErr = runStatusCommand(cfg, os.Args[2:])
+	case "cleanup":
+		actionErr = runCleanupCommand(cfg, os.Args[2:])
 	default:
 		printUsage()
 		os.Exit(1)
@@ -218,6 +220,21 @@ func runStatusCommand(cfg *config.Config, args []string) error {
 	return cli.RunStatusNonInteractive(cfg, name)
 }
 
+func runCleanupCommand(cfg *config.Config, args []string) error {
+	cleanupCmd := flag.NewFlagSet("cleanup", flag.ContinueOnError)
+	cleanupCmd.SetOutput(os.Stderr)
+	yes := cleanupCmd.Bool("yes", false, "Delete without interactive confirmation")
+
+	if err := cleanupCmd.Parse(args); err != nil {
+		return err
+	}
+	if cleanupCmd.NArg() != 0 {
+		return fmt.Errorf("cleanup does not accept positional arguments")
+	}
+
+	return cli.RunCleanupNonInteractive(cfg, *yes)
+}
+
 func parseSingleNameArgFromFlagSet(command string, fs *flag.FlagSet) (string, error) {
 	if fs.NArg() != 1 {
 		return "", fmt.Errorf("%s requires exactly one server name", command)
@@ -263,4 +280,5 @@ func printUsage() {
 	fmt.Fprintln(os.Stderr, "  zplay start <name>")
 	fmt.Fprintln(os.Stderr, "  zplay backup <name>")
 	fmt.Fprintln(os.Stderr, "  zplay status <name>")
+	fmt.Fprintln(os.Stderr, "  zplay cleanup [--yes]")
 }
