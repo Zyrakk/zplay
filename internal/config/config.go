@@ -1,10 +1,12 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+	"syscall"
 
 	"github.com/Zyrakk/zplay/internal/k8s"
 
@@ -93,29 +95,45 @@ func LoadServerState(cfg *Config) (*ServerState, error) {
 	statePath := filepath.Join(cfg.DataPath, "servers.yaml")
 	state := &ServerState{Servers: []ServerInfo{}}
 
-	data, err := os.ReadFile(statePath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return state, nil
+	err := withStateLock(statePath, func() error {
+		data, err := os.ReadFile(statePath)
+		if err != nil {
+			if os.IsNotExist(err) {
+				return nil
+			}
+			return err
 		}
-		return nil, err
-	}
+		return yaml.Unmarshal(data, state)
+	})
 
-	if err := yaml.Unmarshal(data, state); err != nil {
-		return nil, err
-	}
-
-	return state, nil
+	return state, err
 }
 
 func SaveServerState(cfg *Config, state *ServerState) error {
 	statePath := filepath.Join(cfg.DataPath, "servers.yaml")
-	data, err := yaml.Marshal(state)
-	if err != nil {
-		return err
-	}
+	return withStateLock(statePath, func() error {
+		data, err := yaml.Marshal(state)
+		if err != nil {
+			return err
+		}
+		return os.WriteFile(statePath, data, 0600)
+	})
+}
 
-	return os.WriteFile(statePath, data, 0600)
+func withStateLock(statePath string, fn func() error) error {
+	lockPath := statePath + ".lock"
+	lockFile, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, 0600)
+	if err != nil {
+		return fmt.Errorf("opening lock file: %w", err)
+	}
+	defer lockFile.Close()
+
+	if err := syscall.Flock(int(lockFile.Fd()), syscall.LOCK_EX); err != nil {
+		return fmt.Errorf("acquiring lock: %w", err)
+	}
+	defer syscall.Flock(int(lockFile.Fd()), syscall.LOCK_UN)
+
+	return fn()
 }
 
 func (s *ServerState) Add(server ServerInfo) {
