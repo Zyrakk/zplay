@@ -11,6 +11,7 @@ import (
 	"github.com/Zyrakk/zplay/internal/config"
 	"github.com/Zyrakk/zplay/internal/games"
 	"github.com/Zyrakk/zplay/internal/k8s"
+	"github.com/Zyrakk/zplay/internal/util"
 )
 
 func RunStatus(cfg *config.Config, serverName string) error {
@@ -85,7 +86,7 @@ func RunStatus(cfg *config.Config, serverName string) error {
 	memoryRequest := firstNonEmpty(resources.MemoryRequest, srv.Memory, "N/A")
 	memoryLimitFallback := ""
 	if srv.Memory != "" {
-		if inferred, err := inferMemoryLimit(srv.Memory); err == nil {
+		if inferred, err := util.InferMemoryLimit(srv.Memory); err == nil {
 			memoryLimitFallback = inferred
 		}
 	}

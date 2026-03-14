@@ -10,6 +10,7 @@ import (
 	"github.com/Zyrakk/zplay/internal/config"
 	"github.com/Zyrakk/zplay/internal/games"
 	"github.com/Zyrakk/zplay/internal/k8s"
+	"github.com/Zyrakk/zplay/internal/util"
 )
 
 type DeployOptions struct {
@@ -70,7 +71,7 @@ func RunDeployNonInteractive(cfg *config.Config, opts DeployOptions) error {
 	serverCfg.Difficulty = strings.TrimSpace(opts.Difficulty)
 	serverCfg.NodeSelector = parseNodeSelector(opts.Node)
 
-	limit, err := inferMemoryLimit(serverCfg.Memory)
+	limit, err := util.InferMemoryLimit(serverCfg.Memory)
 	if err != nil {
 		return err
 	}
@@ -366,18 +367,6 @@ func parseNodeSelector(node string) string {
 		return ""
 	}
 	return value
-}
-
-func inferMemoryLimit(memory string) (string, error) {
-	memoryMi, err := memoryToMi(memory)
-	if err != nil {
-		return "", err
-	}
-	limitMi := memoryMi * 2
-	if limitMi%1024 == 0 {
-		return fmt.Sprintf("%dGi", limitMi/1024), nil
-	}
-	return fmt.Sprintf("%dMi", limitMi), nil
 }
 
 func findServerByName(state *config.ServerState, name string) (config.ServerInfo, error) {

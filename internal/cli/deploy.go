@@ -12,6 +12,7 @@ import (
 	"github.com/Zyrakk/zplay/internal/config"
 	"github.com/Zyrakk/zplay/internal/games"
 	"github.com/Zyrakk/zplay/internal/k8s"
+	"github.com/Zyrakk/zplay/internal/util"
 )
 
 var (
@@ -398,7 +399,7 @@ func validateDeployConfig(serverCfg *games.ServerConfig, state *config.ServerSta
 	}
 
 	if serverCfg.NodeSelector == "raspberry" {
-		memoryMi, err := memoryToMi(serverCfg.Memory)
+		memoryMi, err := util.MemoryToMi(serverCfg.Memory)
 		if err != nil {
 			return err
 		}
@@ -447,22 +448,3 @@ func formatPorts(ports []int) string {
 	return strings.Join(values, ", ")
 }
 
-func memoryToMi(memory string) (int, error) {
-	if len(memory) < 3 {
-		return 0, fmt.Errorf("invalid memory format: %s", memory)
-	}
-
-	value, err := strconv.Atoi(memory[:len(memory)-2])
-	if err != nil {
-		return 0, fmt.Errorf("invalid memory format: %s", memory)
-	}
-
-	switch memory[len(memory)-2] {
-	case 'G':
-		return value * 1024, nil
-	case 'M':
-		return value, nil
-	default:
-		return 0, fmt.Errorf("invalid memory format: %s", memory)
-	}
-}
