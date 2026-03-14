@@ -14,10 +14,38 @@ import (
 )
 
 type Config struct {
-	Domain       string `yaml:"domain"`
-	Kubeconfig   string `yaml:"kubeconfig"`
-	NodeSelector string `yaml:"node_selector"`
-	DataPath     string `yaml:"data_path"`
+	Domain       string         `yaml:"domain"`
+	Kubeconfig   string         `yaml:"kubeconfig"`
+	NodeSelector string         `yaml:"node_selector"`
+	DataPath     string         `yaml:"data_path"`
+	Backup       BackupConfig   `yaml:"backup"`
+	Storage      StorageConfig  `yaml:"storage"`
+	Defaults     DefaultsConfig `yaml:"defaults"`
+	Probes       ProbesConfig   `yaml:"probes"`
+}
+
+type BackupConfig struct {
+	Path      string `yaml:"path"`
+	Schedule  string `yaml:"schedule"`
+	Retention int    `yaml:"retention"`
+	Node      string `yaml:"node"`
+}
+
+type StorageConfig struct {
+	Size  string `yaml:"size"`
+	Class string `yaml:"class"`
+}
+
+type DefaultsConfig struct {
+	MemoryRequest string `yaml:"memory_request"`
+	MemoryLimit   string `yaml:"memory_limit"`
+	CPULimit      string `yaml:"cpu_limit"`
+	CPURequest    string `yaml:"cpu_request"`
+}
+
+type ProbesConfig struct {
+	VanillaInitialDelay    int `yaml:"vanilla_initial_delay"`
+	TmodloaderInitialDelay int `yaml:"tmodloader_initial_delay"`
 }
 
 type ServerState struct {
@@ -44,6 +72,26 @@ func defaultConfig() *Config {
 		Kubeconfig:   resolveKubeconfig("", home),
 		NodeSelector: "",
 		DataPath:     filepath.Join(home, ".zplay"),
+		Backup: BackupConfig{
+			Path:      "/mnt/das/zplay-backups",
+			Schedule:  "0 4 * * *",
+			Retention: 7,
+			Node:      "oracle1",
+		},
+		Storage: StorageConfig{
+			Size:  "10Gi",
+			Class: "nfs-shared",
+		},
+		Defaults: DefaultsConfig{
+			MemoryRequest: "4Gi",
+			MemoryLimit:   "8Gi",
+			CPULimit:      "2",
+			CPURequest:    "500m",
+		},
+		Probes: ProbesConfig{
+			VanillaInitialDelay:    120,
+			TmodloaderInitialDelay: 300,
+		},
 	}
 }
 
