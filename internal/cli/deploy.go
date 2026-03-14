@@ -299,6 +299,10 @@ func RunDeploy(cfg *config.Config) error {
 
 	client := k8s.NewClient(cfg.Kubeconfig)
 
+	if err := validateNodeExists(client, serverCfg.NodeSelector); err != nil {
+		return err
+	}
+
 	printInfo("Applying to cluster...")
 	if err := client.ApplyAll(manifests); err != nil {
 		return fmt.Errorf("applying manifests: %w", err)
@@ -409,6 +413,25 @@ func validateDeployConfig(serverCfg *games.ServerConfig, state *config.ServerSta
 	}
 
 	return nil
+}
+
+func validateNodeExists(client *k8s.Client, nodeSelector string) error {
+	if nodeSelector == "" {
+		return nil
+	}
+
+	nodes, err := client.GetNodes()
+	if err != nil {
+		return fmt.Errorf("checking nodes: %w", err)
+	}
+
+	for _, node := range nodes {
+		if node == nodeSelector {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("node '%s' not found in cluster (available: %s)", nodeSelector, strings.Join(nodes, ", "))
 }
 
 func allowedEntrypointPorts(gameName string) []int {

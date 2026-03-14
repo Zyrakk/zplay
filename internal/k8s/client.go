@@ -652,6 +652,21 @@ func (c *Client) IsConnected() bool {
 	return cmd.Run() == nil
 }
 
+func (c *Client) GetNodes() ([]string, error) {
+	cmd := c.kubectl("get", "nodes", "-o", "jsonpath={.items[*].metadata.name}")
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, err
+	}
+
+	result := strings.TrimSpace(string(out))
+	if result == "" {
+		return nil, nil
+	}
+
+	return strings.Fields(result), nil
+}
+
 func (c *Client) jobFailed(namespace, jobName string) (bool, string, error) {
 	cmd := c.kubectl("get", "job", jobName, "-n", namespace,
 		"-o", `jsonpath={.status.conditions[?(@.type=="Failed")].status}:{.status.conditions[?(@.type=="Failed")].message}`)

@@ -96,6 +96,10 @@ func RunDeployNonInteractive(cfg *config.Config, opts DeployOptions) error {
 	}
 
 	client := k8s.NewClient(cfg.Kubeconfig)
+	if err := validateNodeExists(client, serverCfg.NodeSelector); err != nil {
+		return err
+	}
+
 	if err := client.ApplyAll(manifests); err != nil {
 		return fmt.Errorf("applying manifests: %w", err)
 	}
