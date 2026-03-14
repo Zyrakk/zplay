@@ -92,6 +92,57 @@ func (t *Terraria) RenderManifests(cfg *games.ServerConfig) ([]string, error) {
 	cfg.Game = t.Name()
 	cfg.Entrypoint = games.PortToEntrypoint(cfg.Game, cfg.Port)
 
+	// Set probe delays based on variant, using config values as defaults
+	if cfg.Variant == "tmodloader" {
+		if cfg.ProbeInitialDelay == 0 {
+			if cfg.ProbeTmodloaderInitDelay > 0 {
+				cfg.ProbeInitialDelay = cfg.ProbeTmodloaderInitDelay
+			} else {
+				cfg.ProbeInitialDelay = 300
+			}
+		}
+		if cfg.ProbeReadinessDelay == 0 {
+			cfg.ProbeReadinessDelay = cfg.ProbeInitialDelay * 3 / 5
+		}
+	} else {
+		if cfg.ProbeInitialDelay == 0 {
+			if cfg.ProbeVanillaInitDelay > 0 {
+				cfg.ProbeInitialDelay = cfg.ProbeVanillaInitDelay
+			} else {
+				cfg.ProbeInitialDelay = 120
+			}
+		}
+		if cfg.ProbeReadinessDelay == 0 {
+			cfg.ProbeReadinessDelay = cfg.ProbeInitialDelay / 2
+		}
+	}
+
+	// Set infrastructure defaults
+	if cfg.StorageSize == "" {
+		cfg.StorageSize = "10Gi"
+	}
+	if cfg.StorageClass == "" {
+		cfg.StorageClass = "nfs-shared"
+	}
+	if cfg.CPURequest == "" {
+		cfg.CPURequest = "500m"
+	}
+	if cfg.CPULimit == "" {
+		cfg.CPULimit = "2"
+	}
+	if cfg.BackupPath == "" {
+		cfg.BackupPath = "/mnt/das/zplay-backups"
+	}
+	if cfg.BackupNode == "" {
+		cfg.BackupNode = "oracle1"
+	}
+	if cfg.BackupSchedule == "" {
+		cfg.BackupSchedule = "0 4 * * *"
+	}
+	if cfg.BackupRetention == 0 {
+		cfg.BackupRetention = 7
+	}
+
 	templateFiles := []string{
 		"namespace.yaml",
 		"volume.yaml",
@@ -139,6 +190,12 @@ func (t *Terraria) RenderBackupJob(cfg *games.ServerConfig) (string, error) {
 	}
 
 	cfg.Game = t.Name()
+	if cfg.BackupPath == "" {
+		cfg.BackupPath = "/mnt/das/zplay-backups"
+	}
+	if cfg.BackupNode == "" {
+		cfg.BackupNode = "oracle1"
+	}
 
 	tmpl, err := template.ParseFS(templates, "templates/backup-job.yaml")
 	if err != nil {
@@ -165,6 +222,12 @@ func (t *Terraria) RenderRestoreJob(cfg *games.ServerConfig) (string, error) {
 	}
 
 	cfg.Game = t.Name()
+	if cfg.BackupPath == "" {
+		cfg.BackupPath = "/mnt/das/zplay-backups"
+	}
+	if cfg.BackupNode == "" {
+		cfg.BackupNode = "oracle1"
+	}
 
 	tmpl, err := template.ParseFS(templates, "templates/restore-job.yaml")
 	if err != nil {
