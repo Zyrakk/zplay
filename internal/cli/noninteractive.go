@@ -10,6 +10,7 @@ import (
 	"github.com/Zyrakk/zplay/internal/config"
 	"github.com/Zyrakk/zplay/internal/games"
 	"github.com/Zyrakk/zplay/internal/k8s"
+	"github.com/Zyrakk/zplay/internal/util"
 )
 
 type DeployOptions struct {
@@ -70,7 +71,7 @@ func RunDeployNonInteractive(cfg *config.Config, opts DeployOptions) error {
 	serverCfg.Difficulty = strings.TrimSpace(opts.Difficulty)
 	serverCfg.NodeSelector = parseNodeSelector(opts.Node)
 
-	limit, err := inferMemoryLimit(serverCfg.Memory)
+	limit, err := util.InferMemoryLimit(serverCfg.Memory)
 	if err != nil {
 		return err
 	}
@@ -95,6 +96,10 @@ func RunDeployNonInteractive(cfg *config.Config, opts DeployOptions) error {
 	}
 
 	client := k8s.NewClient(cfg.Kubeconfig)
+	if err := validateNodeExists(client, serverCfg.NodeSelector); err != nil {
+		return err
+	}
+
 	if err := client.ApplyAll(manifests); err != nil {
 		return fmt.Errorf("applying manifests: %w", err)
 	}
@@ -307,6 +312,14 @@ func RunBackupNonInteractive(cfg *config.Config, name string) error {
 	jobName := fmt.Sprintf("%s-backup-%s", srv.Name, timestamp)
 	client := k8s.NewClient(cfg.Kubeconfig)
 
+	// Save world before backup
+	if podName, podErr := client.GetPodName(namespace, fmt.Sprintf("app=zplay,server=%s,!job-name", srv.Name)); podErr == nil && podName != "" {
+		fmt.Println("Saving world before backup...")
+		if saveErr := client.SaveWorld(namespace, podName, 30); saveErr != nil {
+			fmt.Fprintf(os.Stderr, "warning: could not save world before backup: %v\n", saveErr)
+		}
+	}
+
 	if err := client.RunBackupJob(namespace, jobName, jobManifest, 120); err != nil {
 		return fmt.Errorf("running backup job: %w", err)
 	}
@@ -319,47 +332,6 @@ func RunStatusNonInteractive(cfg *config.Config, name string) error {
 	return RunStatus(cfg, name)
 }
 
-func resolveServerStatus(srv config.ServerInfo, client *k8s.Client) string {
-	game := games.Get(srv.Game)
-	if game == nil {
-		return "Unknown"
-	}
-
-	namespace := resolveNamespace(srv, game)
-	deployment := game.GetDeploymentName(srv.Name)
-	status, _ := client.GetPodStatus(namespace, fmt.Sprintf("app=zplay,server=%s,!job-name", srv.Name))
-	if status == "" {
-		status = "Unknown"
-	}
-
-	replicas, err := client.GetReplicas(namespace, deployment)
-	if err == nil && replicas == 0 {
-		status = "Stopped"
-	}
-
-	return status
-}
-
-func collectServerRows(state *config.ServerState, client *k8s.Client) []listServerJSON {
-	entries := make([]listServerJSON, 0, len(state.Servers))
-	for _, srv := range state.Servers {
-		node := srv.Node
-		if node == "" {
-			node = "auto"
-		}
-
-		entries = append(entries, listServerJSON{
-			Name:    srv.Name,
-			Game:    srv.Game,
-			Variant: srv.Variant,
-			Port:    srv.Port,
-			Node:    node,
-			Status:  resolveServerStatus(srv, client),
-		})
-	}
-	return entries
-}
-
 func parseNodeSelector(node string) string {
 	value := strings.TrimSpace(node)
 	if strings.EqualFold(value, "auto") {
@@ -368,29 +340,3 @@ func parseNodeSelector(node string) string {
 	return value
 }
 
-func inferMemoryLimit(memory string) (string, error) {
-	memoryMi, err := memoryToMi(memory)
-	if err != nil {
-		return "", err
-	}
-	limitMi := memoryMi * 2
-	if limitMi%1024 == 0 {
-		return fmt.Sprintf("%dGi", limitMi/1024), nil
-	}
-	return fmt.Sprintf("%dMi", limitMi), nil
-}
-
-func findServerByName(state *config.ServerState, name string) (config.ServerInfo, error) {
-	target := strings.TrimSpace(name)
-	if target == "" {
-		return config.ServerInfo{}, fmt.Errorf("server name is required")
-	}
-
-	for _, srv := range state.Servers {
-		if srv.Name == target {
-			return srv, nil
-		}
-	}
-
-	return config.ServerInfo{}, fmt.Errorf("server '%s' not found", target)
-}

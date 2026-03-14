@@ -4,11 +4,11 @@ import (
 	"bytes"
 	"embed"
 	"fmt"
-	"strconv"
 	"strings"
 	"text/template"
 
 	"github.com/Zyrakk/zplay/internal/games"
+	"github.com/Zyrakk/zplay/internal/util"
 )
 
 //go:embed templates/*.yaml
@@ -52,7 +52,7 @@ func (t *Terraria) Validate(cfg *games.ServerConfig) error {
 		return fmt.Errorf("tModLoader requires an x86 node. Only lake is available.")
 	}
 	if cfg.Variant == "tmodloader" {
-		if memoryMi, err := memoryToMi(cfg.Memory); err == nil && memoryMi < 4*1024 {
+		if memoryMi, err := util.MemoryToMi(cfg.Memory); err == nil && memoryMi < 4*1024 {
 			fmt.Println("⚠ tModLoader with mods like Calamity recommends at least 4Gi of memory")
 		}
 	}
@@ -185,24 +185,4 @@ func (t *Terraria) GetDeploymentName(serverName string) string {
 
 func (t *Terraria) GetNamespace(serverName string) string {
 	return "zplay-" + serverName
-}
-
-func memoryToMi(memory string) (int, error) {
-	if len(memory) < 3 {
-		return 0, fmt.Errorf("invalid memory format: %s", memory)
-	}
-
-	value, err := strconv.Atoi(memory[:len(memory)-2])
-	if err != nil {
-		return 0, fmt.Errorf("invalid memory format: %s", memory)
-	}
-
-	switch memory[len(memory)-2] {
-	case 'G':
-		return value * 1024, nil
-	case 'M':
-		return value, nil
-	default:
-		return 0, fmt.Errorf("invalid memory format: %s", memory)
-	}
 }
