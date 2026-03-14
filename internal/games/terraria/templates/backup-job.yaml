@@ -15,7 +15,7 @@ spec:
     spec:
       restartPolicy: Never
       nodeSelector:
-        kubernetes.io/hostname: oracle1
+        kubernetes.io/hostname: {{.BackupNode}}
       containers:
         - name: backup
           image: alpine:3.19
@@ -39,5 +39,5 @@ spec:
             claimName: {{.Name}}-pvc
         - name: backup
           hostPath:
-            path: /mnt/das/zplay-backups
+            path: {{.BackupPath}}
             type: DirectoryOrCreate

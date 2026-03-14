@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -55,7 +56,13 @@ func RunCleanup(cfg *config.Config) error {
 	return nil
 }
 
-func RunCleanupNonInteractive(cfg *config.Config, yes bool) error {
+type CleanupOptions struct {
+	Yes    bool
+	DryRun bool
+	JSON   bool
+}
+
+func RunCleanupNonInteractive(cfg *config.Config, opts CleanupOptions) error {
 	client := k8s.NewClient(cfg.Kubeconfig)
 	pvs, err := client.GetReleasedPVs()
 	if err != nil {
@@ -63,7 +70,26 @@ func RunCleanupNonInteractive(cfg *config.Config, yes bool) error {
 	}
 
 	if len(pvs) == 0 {
-		fmt.Println("No orphaned resources found.")
+		if opts.JSON {
+			fmt.Println("[]")
+		} else {
+			fmt.Println("No orphaned resources found.")
+		}
+		return nil
+	}
+
+	if opts.JSON {
+		type pvJSON struct {
+			Name      string `json:"name"`
+			Size      string `json:"size"`
+			Namespace string `json:"namespace"`
+		}
+		items := make([]pvJSON, 0, len(pvs))
+		for _, pv := range pvs {
+			items = append(items, pvJSON{Name: pv.Name, Size: pv.Size, Namespace: pv.Namespace})
+		}
+		data, _ := json.MarshalIndent(items, "", "  ")
+		fmt.Println(string(data))
 		return nil
 	}
 
@@ -72,7 +98,12 @@ func RunCleanupNonInteractive(cfg *config.Config, yes bool) error {
 		fmt.Printf("  %s (%s, %s)\n", pv.Name, pv.Size, pv.Namespace)
 	}
 
-	if !yes {
+	if opts.DryRun {
+		fmt.Println("Dry run — no resources deleted.")
+		return nil
+	}
+
+	if !opts.Yes {
 		return fmt.Errorf("cleanup requires --yes to confirm deletion")
 	}
 

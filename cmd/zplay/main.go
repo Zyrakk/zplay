@@ -224,6 +224,8 @@ func runCleanupCommand(cfg *config.Config, args []string) error {
 	cleanupCmd := flag.NewFlagSet("cleanup", flag.ContinueOnError)
 	cleanupCmd.SetOutput(os.Stderr)
 	yes := cleanupCmd.Bool("yes", false, "Delete without interactive confirmation")
+	dryRun := cleanupCmd.Bool("dry-run", false, "Preview deletions without executing")
+	jsonOutput := cleanupCmd.Bool("json", false, "Output JSON")
 
 	if err := cleanupCmd.Parse(args); err != nil {
 		return err
@@ -232,7 +234,11 @@ func runCleanupCommand(cfg *config.Config, args []string) error {
 		return fmt.Errorf("cleanup does not accept positional arguments")
 	}
 
-	return cli.RunCleanupNonInteractive(cfg, *yes)
+	return cli.RunCleanupNonInteractive(cfg, cli.CleanupOptions{
+		Yes:    *yes,
+		DryRun: *dryRun,
+		JSON:   *jsonOutput,
+	})
 }
 
 func parseSingleNameArgFromFlagSet(command string, fs *flag.FlagSet) (string, error) {
