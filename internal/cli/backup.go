@@ -85,6 +85,14 @@ func RunBackup(cfg *config.Config) error {
 	jobName := fmt.Sprintf("%s-backup-%s", srv.Name, timestamp)
 	client := k8s.NewClient(cfg.Kubeconfig)
 
+	// Save world before backup
+	if podName, podErr := client.GetPodName(namespace, fmt.Sprintf("app=zplay,server=%s,!job-name", srv.Name)); podErr == nil && podName != "" {
+		printInfo("Saving world before backup...")
+		if saveErr := client.SaveWorld(namespace, podName, 30); saveErr != nil {
+			printWarning("Could not save world before backup: " + saveErr.Error())
+		}
+	}
+
 	printInfo("Creating backup job...")
 	if err := client.RunBackupJob(namespace, jobName, jobManifest, 120); err != nil {
 		printError("Backup failed: " + err.Error())

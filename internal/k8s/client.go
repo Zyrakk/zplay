@@ -571,6 +571,33 @@ func (c *Client) ExecNoTTY(namespace, deployment string, command []string) error
 	return cmd.Run()
 }
 
+func (c *Client) SaveWorld(namespace, podName string, timeoutSeconds int) error {
+	if timeoutSeconds <= 0 {
+		timeoutSeconds = 30
+	}
+	cmd := c.kubectl("exec", podName, "-n", namespace, "--",
+		"sh", "-c", fmt.Sprintf(`
+if command -v tmux >/dev/null 2>&1 && tmux has-session -t terraria 2>/dev/null; then
+  tmux send-keys -t terraria "save" Enter
+  for i in $(seq 1 %d); do
+    sleep 1
+    if tmux capture-pane -t terraria -p 2>/dev/null | tail -3 | grep -qi "saved\|saving complete\|world saved"; then
+      echo "World save confirmed"
+      exit 0
+    fi
+  done
+  echo "Save command sent, timed out waiting for confirmation"
+else
+  echo "No tmux session found, skipping save"
+fi
+`, timeoutSeconds))
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("sending save command: %w (output: %s)", err, string(out))
+	}
+	return nil
+}
+
 func (c *Client) GetDeployments(labelSelector string) ([]string, error) {
 	cmd := c.kubectl("get", "deployments", "--all-namespaces",
 		"-l", labelSelector,
