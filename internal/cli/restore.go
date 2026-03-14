@@ -60,7 +60,7 @@ func RunRestore(cfg *config.Config) error {
 	printInfo("Listing available backups...")
 	listJobSuffix := time.Now().Format("20060102-150405")
 	listJobName := fmt.Sprintf("%s-backup-list-%s", srv.Name, listJobSuffix)
-	listManifest := renderBackupListJobManifest(srv.Name, srv.Game, listJobName)
+	listManifest := renderBackupListJobManifest(srv.Name, srv.Game, listJobName, cfg.Backup.Node, cfg.Backup.Path)
 
 	listOutput, err := client.RunJobAndGetLogs(namespace, listJobName, listManifest, 90)
 	if err != nil {
@@ -69,7 +69,7 @@ func RunRestore(cfg *config.Config) error {
 
 	backups := parseBackupFilenames(listOutput)
 	if len(backups) == 0 {
-		fmt.Println(dimStyle.Render("No backups found for this server in /mnt/das/zplay-backups/."))
+		fmt.Println(dimStyle.Render(fmt.Sprintf("No backups found for this server in %s/.", cfg.Backup.Path)))
 		return nil
 	}
 
@@ -117,6 +117,8 @@ func RunRestore(cfg *config.Config) error {
 		NodeSelector: srv.Node,
 		Domain:       cfg.Domain,
 	}
+	serverCfg.BackupPath = cfg.Backup.Path
+	serverCfg.BackupNode = cfg.Backup.Node
 
 	restoreManifest, err := game.RenderRestoreJob(serverCfg)
 	if err != nil {
@@ -153,7 +155,7 @@ func RunRestore(cfg *config.Config) error {
 	return nil
 }
 
-func renderBackupListJobManifest(serverName, gameName, jobName string) string {
+func renderBackupListJobManifest(serverName, gameName, jobName, backupNode, backupPath string) string {
 	return fmt.Sprintf(`apiVersion: batch/v1
 kind: Job
 metadata:
@@ -171,7 +173,7 @@ spec:
     spec:
       restartPolicy: Never
       nodeSelector:
-        kubernetes.io/hostname: oracle1
+        kubernetes.io/hostname: %s
       containers:
         - name: backup-list
           image: alpine:3.19
@@ -185,9 +187,9 @@ spec:
       volumes:
         - name: backup
           hostPath:
-            path: /mnt/das/zplay-backups
+            path: %s
             type: DirectoryOrCreate
-`, jobName, serverName, gameName, serverName, serverName)
+`, jobName, serverName, gameName, serverName, backupNode, serverName, backupPath)
 }
 
 func parseBackupFilenames(output string) []string {

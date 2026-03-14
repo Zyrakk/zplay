@@ -75,6 +75,8 @@ func RunBackup(cfg *config.Config) error {
 		NodeSelector: srv.Node,
 		Domain:       cfg.Domain,
 	}
+	serverCfg.BackupPath = cfg.Backup.Path
+	serverCfg.BackupNode = cfg.Backup.Node
 
 	jobManifest, err := game.RenderBackupJob(serverCfg)
 	if err != nil {
