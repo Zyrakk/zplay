@@ -24,6 +24,20 @@ type ServerConfig struct {
 	NodeSelector string
 	Domain       string
 
+	// Infrastructure config (from config.yaml)
+	BackupPath               string
+	BackupSchedule           string
+	BackupRetention          int
+	BackupNode               string
+	StorageSize              string
+	StorageClass             string
+	CPURequest               string
+	CPULimit                 string
+	ProbeInitialDelay        int
+	ProbeReadinessDelay      int
+	ProbeVanillaInitDelay    int
+	ProbeTmodloaderInitDelay int
+
 	// Terraria specific
 	WorldSize    string
 	WorldSizeNum int
@@ -99,14 +113,24 @@ func AvailableNames() []string {
 // NewServerConfig creates a ServerConfig with defaults
 func NewServerConfig(cfg *config.Config) *ServerConfig {
 	return &ServerConfig{
-		Variant:      "vanilla",
-		AutoBackup:   true,
-		Memory:       "4Gi",
-		MemoryLimit:  "8Gi",
-		Difficulty:   "0",
-		MaxPlayers:   8,
-		NodeSelector: cfg.NodeSelector,
-		Domain:       cfg.Domain,
+		Variant:                  "vanilla",
+		AutoBackup:               true,
+		Memory:                   cfg.Defaults.MemoryRequest,
+		MemoryLimit:              cfg.Defaults.MemoryLimit,
+		Difficulty:               "0",
+		MaxPlayers:               8,
+		NodeSelector:             cfg.NodeSelector,
+		Domain:                   cfg.Domain,
+		BackupPath:               cfg.Backup.Path,
+		BackupSchedule:           cfg.Backup.Schedule,
+		BackupRetention:          cfg.Backup.Retention,
+		BackupNode:               cfg.Backup.Node,
+		StorageSize:              cfg.Storage.Size,
+		StorageClass:             cfg.Storage.Class,
+		CPURequest:               cfg.Defaults.CPURequest,
+		CPULimit:                 cfg.Defaults.CPULimit,
+		ProbeVanillaInitDelay:    cfg.Probes.VanillaInitialDelay,
+		ProbeTmodloaderInitDelay: cfg.Probes.TmodloaderInitialDelay,
 	}
 }
 
