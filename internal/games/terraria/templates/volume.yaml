@@ -10,7 +10,7 @@ metadata:
 spec:
   accessModes:
     - ReadWriteOnce
-  storageClassName: nfs-shared
+  storageClassName: {{.StorageClass}}
   resources:
     requests:
-      storage: 10Gi
+      storage: {{.StorageSize}}

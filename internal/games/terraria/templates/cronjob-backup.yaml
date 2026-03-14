@@ -9,7 +9,7 @@ metadata:
     server: {{.Name}}
     type: backup
 spec:
-  schedule: "0 4 * * *"
+  schedule: "{{.BackupSchedule}}"
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 1
@@ -21,7 +21,7 @@ spec:
         spec:
           restartPolicy: Never
           nodeSelector:
-            kubernetes.io/hostname: oracle1
+            kubernetes.io/hostname: {{.BackupNode}}
           containers:
             - name: backup
               image: alpine:3.19
@@ -35,7 +35,7 @@ spec:
                   echo "Backup complete: {{.Name}}-${TS}.tar.gz"
                   ls -lh /backup/{{.Name}}-${TS}.tar.gz
                   # Cleanup: keep only last 7 backups
-                  ls -t /backup/{{.Name}}-*.tar.gz 2>/dev/null | tail -n +8 | xargs rm -f 2>/dev/null
+                  ls -t /backup/{{.Name}}-*.tar.gz 2>/dev/null | tail -n +$(({{.BackupRetention}} + 1)) | xargs rm -f 2>/dev/null
               volumeMounts:
                 - name: data
                   mountPath: /data
@@ -48,5 +48,5 @@ spec:
                 claimName: {{.Name}}-pvc
             - name: backup
               hostPath:
-                path: /mnt/das/zplay-backups
+                path: {{.BackupPath}}
                 type: DirectoryOrCreate

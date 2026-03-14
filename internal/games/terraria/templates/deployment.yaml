@@ -104,20 +104,20 @@ spec:
           resources:
             requests:
               memory: {{.Memory}}
-              cpu: "500m"
+              cpu: "{{.CPURequest}}"
             limits:
               memory: {{.MemoryLimit}}
-              cpu: "2"
+              cpu: "{{.CPULimit}}"
           livenessProbe:
             exec:
               command: ["sh", "-c", "pgrep -f 'TerrariaServer|mono|dotnet|tModLoader' || exit 1"]
-            initialDelaySeconds: {{ if eq .Variant "tmodloader" }}300{{ else }}120{{ end }}
+            initialDelaySeconds: {{.ProbeInitialDelay}}
             periodSeconds: 30
             failureThreshold: {{ if eq .Variant "tmodloader" }}5{{ else }}3{{ end }}
           readinessProbe:
             exec:
               command: ["sh", "-c", "pgrep -f 'TerrariaServer|mono|dotnet|tModLoader' || exit 1"]
-            initialDelaySeconds: {{ if eq .Variant "tmodloader" }}180{{ else }}60{{ end }}
+            initialDelaySeconds: {{.ProbeReadinessDelay}}
             periodSeconds: {{ if eq .Variant "tmodloader" }}15{{ else }}10{{ end }}
             failureThreshold: {{ if eq .Variant "tmodloader" }}5{{ else }}3{{ end }}
       volumes:
