@@ -1,4 +1,4 @@
-.PHONY: build install clean dev test deps
+.PHONY: build install clean dev test deps build-dashboard docker-dashboard
 
 VERSION := $(shell cat VERSION 2>/dev/null || echo "dev")
 BINARY := zplay
@@ -23,6 +23,17 @@ build-all:
 	CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY)-darwin-amd64 ./cmd/zplay
 	CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY)-darwin-arm64 ./cmd/zplay
 	@echo "Built all platforms in $(BUILD_DIR)/"
+
+build-dashboard:
+	@echo "Building zplay-dashboard $(VERSION) for $(GOOS)/$(GOARCH)..."
+	@mkdir -p $(BUILD_DIR)
+	CGO_ENABLED=0 GOOS=$(GOOS) GOARCH=$(GOARCH) go build $(LDFLAGS) -o $(BUILD_DIR)/zplay-dashboard ./cmd/zplay-dashboard
+	@echo "Built: $(BUILD_DIR)/zplay-dashboard"
+
+docker-dashboard:
+	@echo "Building dashboard Docker image..."
+	docker buildx build --platform linux/arm64,linux/amd64 -f Dockerfile.dashboard --build-arg VERSION=$(VERSION) -t ghcr.io/zyrakk/zplay-dashboard:latest .
+	@echo "Built: ghcr.io/zyrakk/zplay-dashboard:latest"
 
 install: build
 	@echo "Installing to /usr/local/bin/$(BINARY)..."
