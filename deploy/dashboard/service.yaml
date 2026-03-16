@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: zplay-dashboard
+  namespace: zplay-dashboard
+  labels:
+    app: zplay-dashboard
+spec:
+  selector:
+    app: zplay-dashboard
+  ports:
+    - port: 8080
+      targetPort: 8080
+      protocol: TCP
