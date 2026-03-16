@@ -89,12 +89,45 @@ func RunDeploy(cfg *config.Config) error {
 			serverCfg.Variant = "vanilla"
 		case "2":
 			serverCfg.Variant = "tmodloader"
-			// tModLoader defaults: 4Gi request, 8Gi limit
 			serverCfg.Memory = "4Gi"
 			serverCfg.MemoryLimit = "8Gi"
 		default:
 			return fmt.Errorf("invalid server type selection")
 		}
+	case "minecraft":
+		fmt.Println("\nServer type:")
+		fmt.Println("  1) Vanilla")
+		fmt.Println("  2) Paper (optimized)")
+		fmt.Println("  3) Forge (mods)")
+		fmt.Print("Choice [1]: ")
+		variantChoice, _ := reader.ReadString('\n')
+		variantChoice = strings.TrimSpace(variantChoice)
+
+		switch variantChoice {
+		case "", "1":
+			serverCfg.Variant = "vanilla"
+		case "2":
+			serverCfg.Variant = "paper"
+		case "3":
+			serverCfg.Variant = "forge"
+		default:
+			return fmt.Errorf("invalid server type selection")
+		}
+
+		fmt.Print("\nMinecraft version (latest): ")
+		mcVersion, _ := reader.ReadString('\n')
+		mcVersion = strings.TrimSpace(mcVersion)
+		if mcVersion != "" {
+			serverCfg.Version = mcVersion
+		}
+
+		fmt.Print("MOTD (optional): ")
+		motd, _ := reader.ReadString('\n')
+		serverCfg.MOTD = strings.TrimSpace(motd)
+
+		fmt.Print("Operators (comma-separated usernames, optional): ")
+		ops, _ := reader.ReadString('\n')
+		serverCfg.Ops = strings.TrimSpace(ops)
 	}
 
 	// Node selection
@@ -447,7 +480,7 @@ func allowedEntrypointPorts(gameName string) []int {
 
 func gameSupportsAutoBackup(game games.Game) bool {
 	switch game.Name() {
-	case "terraria":
+	case "terraria", "minecraft":
 		return true
 	default:
 		return false

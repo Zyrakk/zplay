@@ -1,0 +1,52 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{.Name}}-backup
+  namespace: zplay-{{.Name}}
+  labels:
+    app: zplay
+    game: {{.Game}}
+    server: {{.Name}}
+    type: backup
+spec:
+  schedule: "{{.BackupSchedule}}"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      ttlSecondsAfterFinished: 300
+      template:
+        spec:
+          restartPolicy: Never
+          nodeSelector:
+            kubernetes.io/hostname: {{.BackupNode}}
+          containers:
+            - name: backup
+              image: alpine:3.19
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  echo "Starting scheduled backup of {{.Name}}..."
+                  mkdir -p /backup
+                  TS=$(date +%Y%m%d-%H%M%S)
+                  tar -czf /backup/{{.Name}}-${TS}.tar.gz -C /data .
+                  echo "Backup complete: {{.Name}}-${TS}.tar.gz"
+                  ls -lh /backup/{{.Name}}-${TS}.tar.gz
+                  # Cleanup: keep only last N backups
+                  ls -t /backup/{{.Name}}-*.tar.gz 2>/dev/null | tail -n +$(({{.BackupRetention}} + 1)) | xargs rm -f 2>/dev/null
+              volumeMounts:
+                - name: data
+                  mountPath: /data
+                  readOnly: true
+                - name: backup
+                  mountPath: /backup
+          volumes:
+            - name: data
+              persistentVolumeClaim:
+                claimName: {{.Name}}-pvc
+            - name: backup
+              hostPath:
+                path: {{.BackupPath}}
+                type: DirectoryOrCreate

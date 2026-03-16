@@ -43,10 +43,12 @@ type ServerConfig struct {
 	WorldSizeNum int
 	Difficulty   string
 
-	// Minecraft specific (future)
-	ServerType string // PAPER, FABRIC, FORGE, etc.
-	Version    string
-	Mods       []string
+	// Minecraft specific
+	ServerType   string // VANILLA, PAPER, FORGE
+	Version      string
+	Ops          string // comma-separated operator usernames
+	RCONPassword string
+	Mods         []string
 }
 
 // Game interface defines what each game implementation must provide

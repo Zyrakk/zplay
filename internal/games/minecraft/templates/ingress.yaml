@@ -1,0 +1,17 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRouteTCP
+metadata:
+  name: {{.Name}}-tcp
+  namespace: zplay-{{.Name}}
+  labels:
+    app: zplay
+    game: {{.Game}}
+    server: {{.Name}}
+spec:
+  entryPoints:
+    - {{.Entrypoint}}
+  routes:
+    - match: HostSNI(`*`)
+      services:
+        - name: {{.Name}}-service
+          port: 25565
