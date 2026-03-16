@@ -1,11 +1,8 @@
 package minecraft
 
 import (
-	"bytes"
 	"embed"
 	"fmt"
-	"strings"
-	"text/template"
 
 	"github.com/Zyrakk/zplay/internal/games"
 )
@@ -62,6 +59,7 @@ func (m *Minecraft) RenderManifests(cfg *games.ServerConfig) ([]string, error) {
 	if cfg.Variant == "" {
 		cfg.Variant = "vanilla"
 	}
+	// Ensure ServerType is set (may not have gone through Validate)
 	if cfg.ServerType == "" {
 		typeMap := map[string]string{
 			"vanilla": "VANILLA",
@@ -80,30 +78,7 @@ func (m *Minecraft) RenderManifests(cfg *games.ServerConfig) ([]string, error) {
 	}
 
 	// Infrastructure defaults
-	if cfg.StorageSize == "" {
-		cfg.StorageSize = "10Gi"
-	}
-	if cfg.StorageClass == "" {
-		cfg.StorageClass = "nfs-shared"
-	}
-	if cfg.CPURequest == "" {
-		cfg.CPURequest = "500m"
-	}
-	if cfg.CPULimit == "" {
-		cfg.CPULimit = "2"
-	}
-	if cfg.BackupPath == "" {
-		cfg.BackupPath = "/mnt/das/zplay-backups"
-	}
-	if cfg.BackupNode == "" {
-		cfg.BackupNode = "oracle1"
-	}
-	if cfg.BackupSchedule == "" {
-		cfg.BackupSchedule = "0 4 * * *"
-	}
-	if cfg.BackupRetention == 0 {
-		cfg.BackupRetention = 7
-	}
+	games.ApplyInfraDefaults(cfg)
 
 	templateFiles := []string{
 		"namespace.yaml",
@@ -117,30 +92,7 @@ func (m *Minecraft) RenderManifests(cfg *games.ServerConfig) ([]string, error) {
 		templateFiles = append(templateFiles, "cronjob-backup.yaml")
 	}
 
-	var manifests []string
-
-	for _, file := range templateFiles {
-		tmpl, err := template.ParseFS(templates, "templates/"+file)
-		if err != nil {
-			return nil, fmt.Errorf("parsing template %s: %w", file, err)
-		}
-
-		var buf bytes.Buffer
-		if err := tmpl.Execute(&buf, cfg); err != nil {
-			return nil, fmt.Errorf("executing template %s: %w", file, err)
-		}
-
-		manifests = append(manifests, buf.String())
-	}
-
-	// Filter empty manifests (conditional templates like secret.yaml)
-	var filtered []string
-	for _, m := range manifests {
-		if strings.TrimSpace(m) != "" {
-			filtered = append(filtered, m)
-		}
-	}
-	return filtered, nil
+	return games.RenderTemplates(templates, "templates", templateFiles, cfg)
 }
 
 func (m *Minecraft) RenderBackupJob(cfg *games.ServerConfig) (string, error) {
@@ -152,24 +104,9 @@ func (m *Minecraft) RenderBackupJob(cfg *games.ServerConfig) (string, error) {
 	}
 
 	cfg.Game = m.Name()
-	if cfg.BackupPath == "" {
-		cfg.BackupPath = "/mnt/das/zplay-backups"
-	}
-	if cfg.BackupNode == "" {
-		cfg.BackupNode = "oracle1"
-	}
+	games.ApplyInfraDefaults(cfg)
 
-	tmpl, err := template.ParseFS(templates, "templates/backup-job.yaml")
-	if err != nil {
-		return "", fmt.Errorf("parsing template backup-job.yaml: %w", err)
-	}
-
-	var buf bytes.Buffer
-	if err := tmpl.Execute(&buf, cfg); err != nil {
-		return "", fmt.Errorf("executing template backup-job.yaml: %w", err)
-	}
-
-	return buf.String(), nil
+	return games.RenderSingleTemplate(templates, "templates", "backup-job.yaml", cfg)
 }
 
 func (m *Minecraft) RenderRestoreJob(cfg *games.ServerConfig) (string, error) {
@@ -184,24 +121,9 @@ func (m *Minecraft) RenderRestoreJob(cfg *games.ServerConfig) (string, error) {
 	}
 
 	cfg.Game = m.Name()
-	if cfg.BackupPath == "" {
-		cfg.BackupPath = "/mnt/das/zplay-backups"
-	}
-	if cfg.BackupNode == "" {
-		cfg.BackupNode = "oracle1"
-	}
+	games.ApplyInfraDefaults(cfg)
 
-	tmpl, err := template.ParseFS(templates, "templates/restore-job.yaml")
-	if err != nil {
-		return "", fmt.Errorf("parsing template restore-job.yaml: %w", err)
-	}
-
-	var buf bytes.Buffer
-	if err := tmpl.Execute(&buf, cfg); err != nil {
-		return "", fmt.Errorf("executing template restore-job.yaml: %w", err)
-	}
-
-	return buf.String(), nil
+	return games.RenderSingleTemplate(templates, "templates", "restore-job.yaml", cfg)
 }
 
 func (m *Minecraft) GetDeploymentName(serverName string) string {
