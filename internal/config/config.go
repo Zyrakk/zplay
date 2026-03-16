@@ -244,9 +244,9 @@ func Reconcile(state *ServerState, discovered []k8s.DiscoveredServer) (added []s
 }
 
 func (s *ServerState) Get(name string) *ServerInfo {
-	for _, srv := range s.Servers {
-		if srv.Name == name {
-			return &srv
+	for i := range s.Servers {
+		if s.Servers[i].Name == name {
+			return &s.Servers[i]
 		}
 	}
 	return nil

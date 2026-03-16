@@ -34,7 +34,7 @@ spec:
                   tar -czf /backup/{{.Name}}-${TS}.tar.gz -C /data .
                   echo "Backup complete: {{.Name}}-${TS}.tar.gz"
                   ls -lh /backup/{{.Name}}-${TS}.tar.gz
-                  # Cleanup: keep only last 7 backups
+                  # Cleanup: keep only last N backups
                   ls -t /backup/{{.Name}}-*.tar.gz 2>/dev/null | tail -n +$(({{.BackupRetention}} + 1)) | xargs rm -f 2>/dev/null
               volumeMounts:
                 - name: data

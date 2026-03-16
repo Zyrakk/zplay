@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -50,6 +51,7 @@ type Collector struct {
 	cacheMu       sync.RWMutex
 	cacheTime     time.Time
 	cacheTTL      time.Duration
+	collecting    atomic.Bool
 }
 
 func NewCollector(clientset *kubernetes.Clientset, metricsClient *metricsv.Clientset) *Collector {
@@ -67,6 +69,15 @@ func (c *Collector) GetServers() []ServerStatus {
 		return c.cache
 	}
 	c.cacheMu.RUnlock()
+
+	// Prevent cache stampede: only one goroutine collects at a time
+	if !c.collecting.CompareAndSwap(false, true) {
+		// Another goroutine is already collecting, return stale cache
+		c.cacheMu.RLock()
+		defer c.cacheMu.RUnlock()
+		return c.cache
+	}
+	defer c.collecting.Store(false)
 
 	servers := c.collect()
 
@@ -125,6 +136,19 @@ func (c *Collector) collect() []ServerStatus {
 				variant = "tmodloader"
 			} else if strings.Contains(image, "terraria") {
 				variant = "vanilla"
+			} else if strings.Contains(image, "minecraft") {
+				// Detect Minecraft variant from TYPE env var
+				variant = "vanilla"
+				for _, env := range container.Env {
+					if env.Name == "TYPE" {
+						switch strings.ToLower(env.Value) {
+						case "paper":
+							variant = "paper"
+						case "forge":
+							variant = "forge"
+						}
+					}
+				}
 			}
 
 			if req, ok := container.Resources.Requests["memory"]; ok {
