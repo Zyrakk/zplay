@@ -1,1 +1,244 @@
-<!-- placeholder -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ZPlay Status</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #0d1117;
+    color: #e6edf3;
+    font-family: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', 'SF Mono', monospace;
+    font-size: 14px;
+    line-height: 1.5;
+    padding: 24px;
+    max-width: 720px;
+    margin: 0 auto;
+  }
+
+  header {
+    border-bottom: 1px solid #30363d;
+    padding-bottom: 16px;
+    margin-bottom: 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+
+  header h1 {
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: #58a6ff;
+  }
+
+  header .version {
+    font-size: 12px;
+    color: #8b949e;
+  }
+
+  .server-card {
+    border: 1px solid #30363d;
+    border-radius: 4px;
+    padding: 16px;
+    margin-bottom: 12px;
+    background: #161b22;
+  }
+
+  .server-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+
+  .server-name {
+    font-weight: 700;
+    font-size: 15px;
+  }
+
+  .server-game {
+    color: #8b949e;
+    font-size: 12px;
+  }
+
+  .status-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+
+  .status-running .status-dot { background: #3fb950; }
+  .status-running { color: #3fb950; }
+  .status-stopped .status-dot { background: #f85149; }
+  .status-stopped { color: #f85149; }
+  .status-pending .status-dot { background: #d29922; }
+  .status-pending { color: #d29922; }
+  .status-unknown .status-dot { background: #8b949e; }
+  .status-unknown { color: #8b949e; }
+
+  .server-details {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px 24px;
+    font-size: 13px;
+  }
+
+  .detail-label {
+    color: #8b949e;
+  }
+
+  .detail-value {
+    color: #e6edf3;
+    text-align: right;
+  }
+
+  footer {
+    border-top: 1px solid #30363d;
+    padding-top: 16px;
+    margin-top: 24px;
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: #8b949e;
+  }
+
+  .empty-state {
+    text-align: center;
+    color: #8b949e;
+    padding: 48px 0;
+    font-size: 13px;
+  }
+
+  .error-state {
+    text-align: center;
+    color: #f85149;
+    padding: 48px 0;
+    font-size: 13px;
+  }
+</style>
+</head>
+<body>
+  <header>
+    <h1>&#9654; ZPLAY STATUS</h1>
+    <span class="version">zplay-dashboard</span>
+  </header>
+
+  <main id="servers">
+    <div class="empty-state">Loading...</div>
+  </main>
+
+  <footer>
+    <span id="updated">Updated --</span>
+    <span id="server-count">0 servers</span>
+  </footer>
+
+  <script>
+    let lastUpdate = null;
+
+    async function fetchServers() {
+      try {
+        const res = await fetch('/api/servers');
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const servers = await res.json();
+        lastUpdate = new Date();
+        render(servers);
+      } catch (err) {
+        document.getElementById('servers').innerHTML =
+          `<div class="error-state">Failed to load: ${err.message}</div>`;
+      }
+    }
+
+    function render(servers) {
+      const main = document.getElementById('servers');
+      document.getElementById('server-count').textContent =
+        `${servers.length} server${servers.length !== 1 ? 's' : ''}`;
+
+      if (servers.length === 0) {
+        main.innerHTML = '<div class="empty-state">No servers deployed</div>';
+        return;
+      }
+
+      main.innerHTML = servers.map(s => {
+        const statusClass = getStatusClass(s.status);
+        return `
+          <div class="server-card">
+            <div class="server-header">
+              <div>
+                <span class="server-name">${esc(s.name)}</span>
+                <span class="server-game">${esc(s.game)}${s.variant ? ' \u00b7 ' + esc(s.variant) : ''}</span>
+              </div>
+              <div class="status-badge ${statusClass}">
+                <span class="status-dot"></span>
+                ${esc(s.status)}
+              </div>
+            </div>
+            <div class="server-details">
+              <span class="detail-label">Node</span>
+              <span class="detail-value">${esc(s.node || 'auto')}</span>
+              <span class="detail-label">Port</span>
+              <span class="detail-value">${s.port || 'N/A'}</span>
+              <span class="detail-label">Uptime</span>
+              <span class="detail-value">${esc(s.uptime || 'N/A')}</span>
+              <span class="detail-label">Players</span>
+              <span class="detail-value">${s.players.current}/${s.players.max || '?'}</span>
+              <span class="detail-label">Memory</span>
+              <span class="detail-value">${esc(s.memory.used || 'N/A')} / ${esc(s.memory.request || 'N/A')}</span>
+              <span class="detail-label">CPU</span>
+              <span class="detail-value">${esc(s.cpu.used || 'N/A')} / ${esc(s.cpu.limit || 'N/A')} cores</span>
+              <span class="detail-label">Backup</span>
+              <span class="detail-value">${s.auto_backup ? '\u2713 Auto' : 'Manual'}${s.last_backup ? ' \u00b7 ' + timeAgo(s.last_backup) : ''}</span>
+            </div>
+          </div>`;
+      }).join('');
+    }
+
+    function getStatusClass(status) {
+      const s = (status || '').toLowerCase();
+      if (s === 'running') return 'status-running';
+      if (s === 'stopped' || s === 'failed') return 'status-stopped';
+      if (s === 'pending' || s === 'containercreating') return 'status-pending';
+      return 'status-unknown';
+    }
+
+    function timeAgo(iso) {
+      const diff = Date.now() - new Date(iso).getTime();
+      const mins = Math.floor(diff / 60000);
+      if (mins < 60) return `${mins}m ago`;
+      const hours = Math.floor(mins / 60);
+      if (hours < 24) return `${hours}h ago`;
+      return `${Math.floor(hours / 24)}d ago`;
+    }
+
+    function esc(s) {
+      if (!s) return '';
+      const d = document.createElement('div');
+      d.textContent = s;
+      return d.innerHTML;
+    }
+
+    setInterval(() => {
+      if (lastUpdate) {
+        const secs = Math.floor((Date.now() - lastUpdate.getTime()) / 1000);
+        document.getElementById('updated').textContent = `Updated ${secs}s ago`;
+      }
+    }, 1000);
+
+    fetchServers();
+    setInterval(fetchServers, 30000);
+  </script>
+</body>
+</html>
