@@ -12,6 +12,7 @@ import (
 	"github.com/Zyrakk/zplay/internal/k8s"
 
 	// Import games to register them
+	_ "github.com/Zyrakk/zplay/internal/games/minecraft"
 	_ "github.com/Zyrakk/zplay/internal/games/terraria"
 )
 

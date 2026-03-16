@@ -1,0 +1,99 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{.Name}}-minecraft
+  namespace: zplay-{{.Name}}
+  labels:
+    app: zplay
+    game: {{.Game}}
+    server: {{.Name}}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: zplay
+      server: {{.Name}}
+  template:
+    metadata:
+      labels:
+        app: zplay
+        game: {{.Game}}
+        server: {{.Name}}
+    spec:
+      securityContext:
+        fsGroup: 1000
+      {{- if .NodeSelector}}
+      nodeSelector:
+        kubernetes.io/hostname: {{.NodeSelector}}
+      {{- end}}
+      containers:
+        - name: minecraft
+          image: itzg/minecraft-server:latest
+          stdin: true
+          tty: true
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          ports:
+            - name: game
+              containerPort: 25565
+              protocol: TCP
+            - name: rcon
+              containerPort: 25575
+              protocol: TCP
+          env:
+            - name: EULA
+              value: "TRUE"
+            - name: TYPE
+              value: "{{.ServerType}}"
+            {{- if .Version}}
+            - name: VERSION
+              value: "{{.Version}}"
+            {{- end}}
+            - name: MAX_PLAYERS
+              value: "{{.MaxPlayers}}"
+            {{- if .MOTD}}
+            - name: MOTD
+              value: "{{.MOTD}}"
+            {{- end}}
+            {{- if .Ops}}
+            - name: OPS
+              value: "{{.Ops}}"
+            {{- end}}
+            - name: ENABLE_RCON
+              value: "true"
+            {{- if .RCONPassword}}
+            - name: RCON_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{.Name}}-secret
+                  key: rcon-password
+            {{- else}}
+            - name: RCON_PASSWORD
+              value: "zplay"
+            {{- end}}
+            - name: MEMORY
+              value: "{{.Memory}}"
+          resources:
+            requests:
+              memory: {{.Memory}}
+              cpu: "{{.CPURequest}}"
+            limits:
+              memory: {{.MemoryLimit}}
+              cpu: "{{.CPULimit}}"
+          livenessProbe:
+            exec:
+              command: ["mc-health"]
+            initialDelaySeconds: {{.ProbeInitialDelay}}
+            periodSeconds: 30
+            failureThreshold: 5
+          readinessProbe:
+            exec:
+              command: ["mc-health"]
+            initialDelaySeconds: {{.ProbeReadinessDelay}}
+            periodSeconds: 10
+            failureThreshold: 5
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{.Name}}-pvc
