@@ -80,6 +80,10 @@ func RunDeployNonInteractive(cfg *config.Config, opts DeployOptions) error {
 	if gameName == "terraria" && serverCfg.Difficulty == "" {
 		serverCfg.Difficulty = "0"
 	}
+	// Clear Terraria default for Minecraft (NewServerConfig sets "0")
+	if gameName == "minecraft" && serverCfg.Difficulty == "0" && strings.TrimSpace(opts.Difficulty) == "" {
+		serverCfg.Difficulty = ""
+	}
 	serverCfg.NodeSelector = parseNodeSelector(opts.Node)
 	serverCfg.Gamemode = strings.TrimSpace(opts.Gamemode)
 	serverCfg.Seed = strings.TrimSpace(opts.Seed)

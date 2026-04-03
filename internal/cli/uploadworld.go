@@ -65,8 +65,11 @@ func RunUploadWorld(cfg *config.Config, opts UploadWorldOptions) error {
 
 	fmt.Printf("World validated: %s\n", worldDir)
 
-	// Determine target path
+	// Determine target path (respect custom LevelName from deploy)
 	targetName := "world"
+	if srv.LevelName != "" {
+		targetName = srv.LevelName
+	}
 
 	namespace := resolveNamespace(srv, game)
 	deployment := game.GetDeploymentName(srv.Name)
