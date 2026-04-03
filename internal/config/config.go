@@ -61,8 +61,14 @@ type ServerInfo struct {
 	Node       string `yaml:"node"`
 	Port       int    `yaml:"port"`
 	Memory     string `yaml:"memory"`
-	MaxPlayers int    `yaml:"max_players"`
-	CreatedAt  string `yaml:"created_at"`
+	MaxPlayers   int    `yaml:"max_players"`
+	CreatedAt    string `yaml:"created_at"`
+	Difficulty   string `yaml:"difficulty,omitempty"`
+	Gamemode     string `yaml:"gamemode,omitempty"`
+	Seed         string `yaml:"seed,omitempty"`
+	PvP          string `yaml:"pvp,omitempty"`
+	ViewDistance string `yaml:"view_distance,omitempty"`
+	LevelName    string `yaml:"level_name,omitempty"`
 }
 
 func defaultConfig() *Config {

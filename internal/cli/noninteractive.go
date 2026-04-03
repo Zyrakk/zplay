@@ -162,16 +162,22 @@ func RunDeployNonInteractive(cfg *config.Config, opts DeployOptions) error {
 	}
 
 	state.Add(config.ServerInfo{
-		Name:       serverCfg.Name,
-		Game:       game.Name(),
-		Namespace:  namespace,
-		Variant:    serverCfg.Variant,
-		AutoBackup: serverCfg.AutoBackup,
-		Node:       serverCfg.NodeSelector,
-		Port:       serverCfg.Port,
-		Memory:     serverCfg.Memory,
-		MaxPlayers: serverCfg.MaxPlayers,
-		CreatedAt:  time.Now().Format(time.RFC3339),
+		Name:         serverCfg.Name,
+		Game:         game.Name(),
+		Namespace:    namespace,
+		Variant:      serverCfg.Variant,
+		AutoBackup:   serverCfg.AutoBackup,
+		Node:         serverCfg.NodeSelector,
+		Port:         serverCfg.Port,
+		Memory:       serverCfg.Memory,
+		MaxPlayers:   serverCfg.MaxPlayers,
+		CreatedAt:    time.Now().Format(time.RFC3339),
+		Difficulty:   serverCfg.Difficulty,
+		Gamemode:     serverCfg.Gamemode,
+		Seed:         serverCfg.Seed,
+		PvP:          serverCfg.PvP,
+		ViewDistance: serverCfg.ViewDistance,
+		LevelName:    serverCfg.LevelName,
 	})
 	if err := config.SaveServerState(cfg, state); err != nil {
 		return fmt.Errorf("saving server state: %w", err)
