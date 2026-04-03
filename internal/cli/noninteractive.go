@@ -23,8 +23,13 @@ type DeployOptions struct {
 	Password   string
 	MaxPlayers int
 	WorldSize  string
-	Difficulty string
-	AutoBackup bool
+	Difficulty   string
+	AutoBackup   bool
+	Gamemode     string
+	Seed         string
+	PvP          string
+	ViewDistance string
+	LevelName    string
 }
 
 type listServerJSON struct {
@@ -69,7 +74,16 @@ func RunDeployNonInteractive(cfg *config.Config, opts DeployOptions) error {
 	serverCfg.MaxPlayers = opts.MaxPlayers
 	serverCfg.WorldSize = strings.TrimSpace(opts.WorldSize)
 	serverCfg.Difficulty = strings.TrimSpace(opts.Difficulty)
+	// Terraria defaults to Classic (0) if not specified
+	if gameName == "terraria" && serverCfg.Difficulty == "" {
+		serverCfg.Difficulty = "0"
+	}
 	serverCfg.NodeSelector = parseNodeSelector(opts.Node)
+	serverCfg.Gamemode = strings.TrimSpace(opts.Gamemode)
+	serverCfg.Seed = strings.TrimSpace(opts.Seed)
+	serverCfg.PvP = strings.TrimSpace(opts.PvP)
+	serverCfg.ViewDistance = strings.TrimSpace(opts.ViewDistance)
+	serverCfg.LevelName = strings.TrimSpace(opts.LevelName)
 
 	limit, err := util.InferMemoryLimit(serverCfg.Memory)
 	if err != nil {

@@ -85,8 +85,13 @@ func runDeployCommand(cfg *config.Config, args []string) error {
 	password := deployCmd.String("password", "", "Optional server password")
 	maxPlayers := deployCmd.Int("max-players", 8, "Max players")
 	worldSize := deployCmd.String("world-size", "medium", "World size (small, medium, large)")
-	difficulty := deployCmd.String("difficulty", "0", "Difficulty (0, 1, 2, 3)")
+	difficulty := deployCmd.String("difficulty", "", "Difficulty level")
 	autoBackup := deployCmd.Bool("auto-backup", false, "Enable daily auto-backup")
+	gamemode := deployCmd.String("gamemode", "", "Gamemode (survival, creative, adventure, spectator)")
+	seed := deployCmd.String("seed", "", "World seed")
+	pvp := deployCmd.String("pvp", "", "PvP enabled (true, false)")
+	viewDistance := deployCmd.String("view-distance", "", "View distance (2-32)")
+	levelName := deployCmd.String("level-name", "", "Level name")
 
 	if err := deployCmd.Parse(args); err != nil {
 		return err
@@ -116,17 +121,22 @@ func runDeployCommand(cfg *config.Config, args []string) error {
 	}
 
 	return cli.RunDeployNonInteractive(cfg, cli.DeployOptions{
-		Game:       *gameName,
-		Variant:    *variant,
-		Name:       *name,
-		Memory:     *memory,
-		Node:       *node,
-		Port:       *port,
-		Password:   *password,
-		MaxPlayers: *maxPlayers,
-		WorldSize:  *worldSize,
-		Difficulty: *difficulty,
-		AutoBackup: *autoBackup,
+		Game:         *gameName,
+		Variant:      *variant,
+		Name:         *name,
+		Memory:       *memory,
+		Node:         *node,
+		Port:         *port,
+		Password:     *password,
+		MaxPlayers:   *maxPlayers,
+		WorldSize:    *worldSize,
+		Difficulty:   *difficulty,
+		AutoBackup:   *autoBackup,
+		Gamemode:     *gamemode,
+		Seed:         *seed,
+		PvP:          *pvp,
+		ViewDistance: *viewDistance,
+		LevelName:    *levelName,
 	})
 }
 
@@ -279,7 +289,7 @@ func printUsage() {
 	fmt.Fprintln(os.Stderr, "Usage:")
 	fmt.Fprintln(os.Stderr, "  zplay")
 	fmt.Fprintln(os.Stderr, "  zplay version")
-	fmt.Fprintln(os.Stderr, "  zplay deploy --game <game> --variant <variant> --name <name> --memory <memory> --node <node|auto> --port <port> [--password <password>] [--max-players <n>] [--world-size <size>] [--difficulty <level>] [--auto-backup]")
+	fmt.Fprintln(os.Stderr, "  zplay deploy --game <game> --variant <variant> --name <name> --memory <memory> --node <node|auto> --port <port> [--password <password>] [--max-players <n>] [--world-size <size>] [--difficulty <level>] [--gamemode <mode>] [--seed <seed>] [--pvp <bool>] [--view-distance <n>] [--level-name <name>] [--auto-backup]")
 	fmt.Fprintln(os.Stderr, "  zplay list [--json]")
 	fmt.Fprintln(os.Stderr, "  zplay delete <name> --yes")
 	fmt.Fprintln(os.Stderr, "  zplay stop <name>")
