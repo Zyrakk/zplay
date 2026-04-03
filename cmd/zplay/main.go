@@ -94,6 +94,8 @@ func runDeployCommand(cfg *config.Config, args []string) error {
 	pvp := deployCmd.String("pvp", "", "PvP enabled (true, false)")
 	viewDistance := deployCmd.String("view-distance", "", "View distance (2-32)")
 	levelName := deployCmd.String("level-name", "", "Level name")
+	worldPath := deployCmd.String("world-path", "", "Local path to custom world (directory or archive)")
+	worldURL := deployCmd.String("world-url", "", "URL to download custom world")
 
 	if err := deployCmd.Parse(args); err != nil {
 		return err
@@ -139,6 +141,8 @@ func runDeployCommand(cfg *config.Config, args []string) error {
 		PvP:          *pvp,
 		ViewDistance: *viewDistance,
 		LevelName:    *levelName,
+		WorldPath:   *worldPath,
+		WorldURL:    *worldURL,
 	})
 }
 
@@ -325,7 +329,7 @@ func printUsage() {
 	fmt.Fprintln(os.Stderr, "Usage:")
 	fmt.Fprintln(os.Stderr, "  zplay")
 	fmt.Fprintln(os.Stderr, "  zplay version")
-	fmt.Fprintln(os.Stderr, "  zplay deploy --game <game> --variant <variant> --name <name> --memory <memory> --node <node|auto> --port <port> [--password <password>] [--max-players <n>] [--world-size <size>] [--difficulty <level>] [--gamemode <mode>] [--seed <seed>] [--pvp <bool>] [--view-distance <n>] [--level-name <name>] [--auto-backup]")
+	fmt.Fprintln(os.Stderr, "  zplay deploy --game <game> --variant <variant> --name <name> --memory <memory> --node <node|auto> --port <port> [--password <password>] [--max-players <n>] [--world-size <size>] [--difficulty <level>] [--gamemode <mode>] [--seed <seed>] [--pvp <bool>] [--view-distance <n>] [--level-name <name>] [--world-path <path>] [--world-url <url>] [--auto-backup]")
 	fmt.Fprintln(os.Stderr, "  zplay list [--json]")
 	fmt.Fprintln(os.Stderr, "  zplay delete <name> --yes")
 	fmt.Fprintln(os.Stderr, "  zplay stop <name>")

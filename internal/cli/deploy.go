@@ -11,6 +11,7 @@ import (
 
 	"github.com/Zyrakk/zplay/internal/config"
 	"github.com/Zyrakk/zplay/internal/games"
+	"github.com/Zyrakk/zplay/internal/games/minecraft"
 	"github.com/Zyrakk/zplay/internal/k8s"
 	"github.com/Zyrakk/zplay/internal/util"
 )
@@ -160,6 +161,21 @@ func RunDeploy(cfg *config.Config) error {
 		fmt.Print("  Level name: ")
 		levelName, _ := reader.ReadString('\n')
 		serverCfg.LevelName = strings.TrimSpace(levelName)
+
+		fmt.Print("\n  Custom world (path, URL, or Enter to skip): ")
+		worldSource, _ := reader.ReadString('\n')
+		worldSource = strings.TrimSpace(worldSource)
+		if worldSource != "" {
+			worldDir, cleanup, err := resolveWorldSource(worldSource)
+			if err != nil {
+				return fmt.Errorf("invalid world source: %w", err)
+			}
+			if cleanup != nil {
+				defer cleanup()
+			}
+			serverCfg.WorldSource = worldDir
+			printSuccess(fmt.Sprintf("World validated: %s", worldDir))
+		}
 	}
 
 	// Node selection
@@ -352,6 +368,9 @@ func RunDeploy(cfg *config.Config) error {
 	if serverCfg.LevelName != "" {
 		fmt.Printf("Level Name:  %s\n", serverCfg.LevelName)
 	}
+	if serverCfg.WorldSource != "" {
+		fmt.Printf("World:       %s\n", serverCfg.WorldSource)
+	}
 	if gameSupportsAutoBackup(game) {
 		if serverCfg.AutoBackup {
 			fmt.Printf("Auto Backup: enabled (daily 4:00 AM)\n")
@@ -387,9 +406,30 @@ func RunDeploy(cfg *config.Config) error {
 		return err
 	}
 
-	printInfo("Applying to cluster...")
-	if err := client.ApplyAll(manifests); err != nil {
-		return fmt.Errorf("applying manifests: %w", err)
+	if serverCfg.WorldSource != "" {
+		infra, workload := splitManifests(manifests)
+
+		printInfo("Creating namespace and storage...")
+		if err := client.ApplyAll(infra); err != nil {
+			return fmt.Errorf("applying infrastructure: %w", err)
+		}
+
+		printInfo("Uploading world to server...")
+		if err := deployWorldUpload(client, game, serverCfg); err != nil {
+			namespace := game.GetNamespace(serverCfg.Name)
+			client.DeleteNamespace(namespace)
+			return fmt.Errorf("uploading world: %w", err)
+		}
+
+		printInfo("Applying server configuration...")
+		if err := client.ApplyAll(workload); err != nil {
+			return fmt.Errorf("applying workload: %w", err)
+		}
+	} else {
+		printInfo("Applying to cluster...")
+		if err := client.ApplyAll(manifests); err != nil {
+			return fmt.Errorf("applying manifests: %w", err)
+		}
 	}
 
 	printSuccess("Resources created")
@@ -553,5 +593,63 @@ func formatPorts(ports []int) string {
 		values = append(values, strconv.Itoa(port))
 	}
 	return strings.Join(values, ", ")
+}
+
+func splitManifests(manifests []string) (infra []string, workload []string) {
+	for _, m := range manifests {
+		if strings.Contains(m, "kind: Namespace") || strings.Contains(m, "kind: PersistentVolumeClaim") {
+			infra = append(infra, m)
+		} else {
+			workload = append(workload, m)
+		}
+	}
+	return
+}
+
+func deployWorldUpload(client *k8s.Client, game games.Game, serverCfg *games.ServerConfig) error {
+	mc, ok := game.(*minecraft.Minecraft)
+	if !ok {
+		return fmt.Errorf("world upload requires Minecraft game type")
+	}
+
+	jobCfg := &games.ServerConfig{
+		Name: serverCfg.Name,
+		Game: serverCfg.Game,
+	}
+	jobManifest, err := mc.RenderUploadJob(jobCfg)
+	if err != nil {
+		return fmt.Errorf("rendering upload job: %w", err)
+	}
+
+	namespace := game.GetNamespace(serverCfg.Name)
+	jobName := serverCfg.Name + "-upload"
+
+	if err := client.Apply(jobManifest); err != nil {
+		return fmt.Errorf("creating upload job: %w", err)
+	}
+
+	jobSelector := fmt.Sprintf("job-name=%s", jobName)
+	podName, err := client.WaitForPodRunning(namespace, jobSelector, 120)
+	if err != nil {
+		client.DeleteJob(namespace, jobName)
+		return fmt.Errorf("upload pod not ready: %w", err)
+	}
+
+	targetName := "world"
+	if serverCfg.LevelName != "" {
+		targetName = serverCfg.LevelName
+	}
+	targetPath := fmt.Sprintf("/data/%s", targetName)
+
+	if err := client.CopyToPod(namespace, podName, serverCfg.WorldSource, targetPath); err != nil {
+		client.DeleteJob(namespace, jobName)
+		return fmt.Errorf("copying world: %w", err)
+	}
+
+	if err := client.DeleteJob(namespace, jobName); err != nil {
+		printWarning("Could not delete upload job: " + err.Error())
+	}
+
+	return nil
 }
 

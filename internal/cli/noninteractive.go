@@ -30,6 +30,8 @@ type DeployOptions struct {
 	PvP          string
 	ViewDistance string
 	LevelName    string
+	WorldPath string
+	WorldURL  string
 }
 
 type listServerJSON struct {
@@ -97,6 +99,26 @@ func RunDeployNonInteractive(cfg *config.Config, opts DeployOptions) error {
 		serverCfg.AutoBackup = false
 	}
 
+	// Resolve world source if provided
+	worldSource := strings.TrimSpace(opts.WorldPath)
+	worldURL := strings.TrimSpace(opts.WorldURL)
+	if worldSource != "" && worldURL != "" {
+		return fmt.Errorf("only one of --world-path or --world-url can be specified")
+	}
+	if worldURL != "" {
+		worldSource = worldURL
+	}
+	if worldSource != "" {
+		worldDir, cleanup, err := resolveWorldSource(worldSource)
+		if err != nil {
+			return fmt.Errorf("invalid world source: %w", err)
+		}
+		if cleanup != nil {
+			defer cleanup()
+		}
+		serverCfg.WorldSource = worldDir
+	}
+
 	if err := validateDeployConfig(serverCfg, state, game); err != nil {
 		return fmt.Errorf("validation failed: %w", err)
 	}
@@ -114,8 +136,23 @@ func RunDeployNonInteractive(cfg *config.Config, opts DeployOptions) error {
 		return err
 	}
 
-	if err := client.ApplyAll(manifests); err != nil {
-		return fmt.Errorf("applying manifests: %w", err)
+	if serverCfg.WorldSource != "" {
+		infra, workload := splitManifests(manifests)
+		if err := client.ApplyAll(infra); err != nil {
+			return fmt.Errorf("applying infrastructure: %w", err)
+		}
+		if err := deployWorldUpload(client, game, serverCfg); err != nil {
+			namespace := game.GetNamespace(serverCfg.Name)
+			client.DeleteNamespace(namespace)
+			return fmt.Errorf("uploading world: %w", err)
+		}
+		if err := client.ApplyAll(workload); err != nil {
+			return fmt.Errorf("applying workload: %w", err)
+		}
+	} else {
+		if err := client.ApplyAll(manifests); err != nil {
+			return fmt.Errorf("applying manifests: %w", err)
+		}
 	}
 
 	namespace := game.GetNamespace(serverCfg.Name)

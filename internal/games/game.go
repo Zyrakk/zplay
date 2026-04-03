@@ -56,6 +56,9 @@ type ServerConfig struct {
 	PvP          string
 	ViewDistance string
 	LevelName    string
+
+	// Transient fields (not persisted or templated)
+	WorldSource string // Resolved local path to world directory for upload during deploy
 }
 
 // Game interface defines what each game implementation must provide
