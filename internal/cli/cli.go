@@ -62,6 +62,7 @@ func initialMenuModel(cfg *config.Config) menuModel {
 			"Server status",
 			"Backup server",
 			"Restore backup",
+			"Upload world",
 			"Delete server",
 			"Server console",
 			"View logs",
@@ -153,6 +154,8 @@ func Run(cfg *config.Config) error {
 			actionErr = RunBackup(cfg)
 		case "Restore backup":
 			actionErr = RunRestore(cfg)
+		case "Upload world":
+			actionErr = RunUploadWorldInteractive(cfg)
 		case "Delete server":
 			actionErr = RunDelete(cfg)
 		case "Server console":

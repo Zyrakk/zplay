@@ -165,6 +165,75 @@ func RunUploadWorld(cfg *config.Config, opts UploadWorldOptions) error {
 	return nil
 }
 
+func RunUploadWorldInteractive(cfg *config.Config) error {
+	clearScreen()
+	fmt.Println(titleStyle.Render("Upload World"))
+	fmt.Println()
+
+	reader := bufio.NewReader(os.Stdin)
+
+	// Load server state
+	state, err := config.LoadServerState(cfg)
+	if err != nil {
+		return fmt.Errorf("loading server state: %w", err)
+	}
+
+	// Filter to Minecraft servers only
+	var mcServers []config.ServerInfo
+	for _, srv := range state.Servers {
+		if srv.Game == "minecraft" {
+			mcServers = append(mcServers, srv)
+		}
+	}
+
+	if len(mcServers) == 0 {
+		fmt.Println("No Minecraft servers deployed.")
+		return nil
+	}
+
+	// Select server
+	fmt.Println("Select server:")
+	for i, srv := range mcServers {
+		fmt.Printf("  %d) %s (%s)\n", i+1, srv.Name, srv.Variant)
+	}
+	fmt.Print("\nChoice: ")
+	choice, _ := reader.ReadString('\n')
+	choice = strings.TrimSpace(choice)
+
+	idx := 0
+	if choice != "" {
+		parsed, err := fmt.Sscanf(choice, "%d", &idx)
+		if parsed != 1 || err != nil || idx < 1 || idx > len(mcServers) {
+			return fmt.Errorf("invalid selection")
+		}
+		idx--
+	} else {
+		return fmt.Errorf("server selection is required")
+	}
+
+	srv := mcServers[idx]
+
+	// Get source
+	fmt.Print("\nWorld source (local path or URL): ")
+	source, _ := reader.ReadString('\n')
+	source = strings.TrimSpace(source)
+	if source == "" {
+		return fmt.Errorf("world source is required")
+	}
+
+	opts := UploadWorldOptions{
+		Name: srv.Name,
+		Yes:  false,
+	}
+	if world.IsURL(source) {
+		opts.URL = source
+	} else {
+		opts.Path = source
+	}
+
+	return RunUploadWorld(cfg, opts)
+}
+
 // resolveWorldSource resolves a local path or URL to a validated world directory.
 // Returns the world directory path and an optional cleanup function.
 func resolveWorldSource(source string) (string, func(), error) {
