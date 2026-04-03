@@ -99,7 +99,7 @@ spec:
               value: "{{.ViewDistance}}"
             {{- end}}
             {{- if .LevelName}}
-            - name: LEVEL_NAME
+            - name: LEVEL
               value: "{{.LevelName}}"
             {{- end}}
           resources:

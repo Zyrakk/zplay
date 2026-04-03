@@ -307,7 +307,7 @@ func TestRenderManifests_WithServerProperties(t *testing.T) {
 		{"pvp value", `value: "false"`},
 		{"view distance env", `name: VIEW_DISTANCE`},
 		{"view distance value", `value: "16"`},
-		{"level name env", `name: LEVEL_NAME`},
+		{"level name env", `name: LEVEL`},
 		{"level name value", `value: "My World"`},
 	}
 
@@ -331,7 +331,7 @@ func TestRenderManifests_ServerPropertiesOmittedWhenEmpty(t *testing.T) {
 
 	joined := strings.Join(manifests, "\n---\n")
 
-	absent := []string{"DIFFICULTY", "MODE", "SEED", "PVP", "VIEW_DISTANCE", "LEVEL_NAME"}
+	absent := []string{"DIFFICULTY", "MODE", "SEED", "PVP", "VIEW_DISTANCE", "LEVEL"}
 	for _, env := range absent {
 		if strings.Contains(joined, fmt.Sprintf("name: %s", env)) {
 			t.Errorf("expected %s to be absent when field is empty", env)
