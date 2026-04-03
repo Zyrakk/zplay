@@ -74,6 +74,30 @@ spec:
             {{- end}}
             - name: MEMORY
               value: "{{.Memory}}"
+            {{- if .Difficulty}}
+            - name: DIFFICULTY
+              value: "{{.Difficulty}}"
+            {{- end}}
+            {{- if .Gamemode}}
+            - name: MODE
+              value: "{{.Gamemode}}"
+            {{- end}}
+            {{- if .Seed}}
+            - name: SEED
+              value: "{{.Seed}}"
+            {{- end}}
+            {{- if .PvP}}
+            - name: PVP
+              value: "{{.PvP}}"
+            {{- end}}
+            {{- if .ViewDistance}}
+            - name: VIEW_DISTANCE
+              value: "{{.ViewDistance}}"
+            {{- end}}
+            {{- if .LevelName}}
+            - name: LEVEL_NAME
+              value: "{{.LevelName}}"
+            {{- end}}
           resources:
             requests:
               memory: {{.Memory}}

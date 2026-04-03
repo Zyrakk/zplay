@@ -1,6 +1,7 @@
 package minecraft
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -271,6 +272,70 @@ func TestValidate_MinecraftPvP(t *testing.T) {
 	cfg.PvP = "yes"
 	if err := mc.Validate(cfg); err == nil {
 		t.Error("expected error for invalid pvp 'yes'")
+	}
+}
+
+func TestRenderManifests_WithServerProperties(t *testing.T) {
+	mc := &Minecraft{}
+	cfg := testConfig()
+	cfg.Variant = "vanilla"
+	cfg.Difficulty = "hard"
+	cfg.Gamemode = "survival"
+	cfg.Seed = "my-seed-123"
+	cfg.PvP = "false"
+	cfg.ViewDistance = "16"
+	cfg.LevelName = "My World"
+
+	manifests, err := mc.RenderManifests(cfg)
+	if err != nil {
+		t.Fatalf("RenderManifests failed: %v", err)
+	}
+
+	joined := strings.Join(manifests, "\n---\n")
+
+	checks := []struct {
+		desc     string
+		contains string
+	}{
+		{"difficulty env", `name: DIFFICULTY`},
+		{"difficulty value", `value: "hard"`},
+		{"mode env", `name: MODE`},
+		{"mode value", `value: "survival"`},
+		{"seed env", `name: SEED`},
+		{"seed value", `value: "my-seed-123"`},
+		{"pvp env", `name: PVP`},
+		{"pvp value", `value: "false"`},
+		{"view distance env", `name: VIEW_DISTANCE`},
+		{"view distance value", `value: "16"`},
+		{"level name env", `name: LEVEL_NAME`},
+		{"level name value", `value: "My World"`},
+	}
+
+	for _, c := range checks {
+		if !strings.Contains(joined, c.contains) {
+			t.Errorf("expected manifests to contain %q (%s)", c.contains, c.desc)
+		}
+	}
+}
+
+func TestRenderManifests_ServerPropertiesOmittedWhenEmpty(t *testing.T) {
+	mc := &Minecraft{}
+	cfg := testConfig()
+	cfg.Variant = "vanilla"
+	cfg.Difficulty = "" // Clear Terraria default
+
+	manifests, err := mc.RenderManifests(cfg)
+	if err != nil {
+		t.Fatalf("RenderManifests failed: %v", err)
+	}
+
+	joined := strings.Join(manifests, "\n---\n")
+
+	absent := []string{"DIFFICULTY", "MODE", "SEED", "PVP", "VIEW_DISTANCE", "LEVEL_NAME"}
+	for _, env := range absent {
+		if strings.Contains(joined, fmt.Sprintf("name: %s", env)) {
+			t.Errorf("expected %s to be absent when field is empty", env)
+		}
 	}
 }
 
