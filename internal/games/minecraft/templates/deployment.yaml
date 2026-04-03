@@ -22,6 +22,10 @@ spec:
     spec:
       securityContext:
         fsGroup: 1000
+      dnsConfig:
+        options:
+          - name: ndots
+            value: "2"
       {{- if .NodeSelector}}
       nodeSelector:
         kubernetes.io/hostname: {{.NodeSelector}}
