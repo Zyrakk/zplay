@@ -210,3 +210,90 @@ func TestValidate_InvalidMaxPlayers(t *testing.T) {
 		t.Error("expected error for 0 max players")
 	}
 }
+
+func TestValidate_MinecraftDifficulty(t *testing.T) {
+	mc := &Minecraft{}
+
+	valid := []string{"", "peaceful", "easy", "normal", "hard"}
+	for _, v := range valid {
+		cfg := testConfig()
+		cfg.Variant = "vanilla"
+		cfg.Difficulty = v
+		if err := mc.Validate(cfg); err != nil {
+			t.Errorf("expected difficulty %q to be valid, got: %v", v, err)
+		}
+	}
+
+	cfg := testConfig()
+	cfg.Variant = "vanilla"
+	cfg.Difficulty = "nightmare"
+	if err := mc.Validate(cfg); err == nil {
+		t.Error("expected error for invalid difficulty 'nightmare'")
+	}
+}
+
+func TestValidate_MinecraftGamemode(t *testing.T) {
+	mc := &Minecraft{}
+
+	valid := []string{"", "survival", "creative", "adventure", "spectator"}
+	for _, v := range valid {
+		cfg := testConfig()
+		cfg.Variant = "vanilla"
+		cfg.Gamemode = v
+		if err := mc.Validate(cfg); err != nil {
+			t.Errorf("expected gamemode %q to be valid, got: %v", v, err)
+		}
+	}
+
+	cfg := testConfig()
+	cfg.Variant = "vanilla"
+	cfg.Gamemode = "hardcore"
+	if err := mc.Validate(cfg); err == nil {
+		t.Error("expected error for invalid gamemode 'hardcore'")
+	}
+}
+
+func TestValidate_MinecraftPvP(t *testing.T) {
+	mc := &Minecraft{}
+
+	valid := []string{"", "true", "false"}
+	for _, v := range valid {
+		cfg := testConfig()
+		cfg.Variant = "vanilla"
+		cfg.PvP = v
+		if err := mc.Validate(cfg); err != nil {
+			t.Errorf("expected pvp %q to be valid, got: %v", v, err)
+		}
+	}
+
+	cfg := testConfig()
+	cfg.Variant = "vanilla"
+	cfg.PvP = "yes"
+	if err := mc.Validate(cfg); err == nil {
+		t.Error("expected error for invalid pvp 'yes'")
+	}
+}
+
+func TestValidate_MinecraftViewDistance(t *testing.T) {
+	mc := &Minecraft{}
+
+	valid := []string{"", "2", "10", "32"}
+	for _, v := range valid {
+		cfg := testConfig()
+		cfg.Variant = "vanilla"
+		cfg.ViewDistance = v
+		if err := mc.Validate(cfg); err != nil {
+			t.Errorf("expected view distance %q to be valid, got: %v", v, err)
+		}
+	}
+
+	invalid := []string{"1", "33", "abc"}
+	for _, v := range invalid {
+		cfg := testConfig()
+		cfg.Variant = "vanilla"
+		cfg.ViewDistance = v
+		if err := mc.Validate(cfg); err == nil {
+			t.Errorf("expected error for invalid view distance %q", v)
+		}
+	}
+}

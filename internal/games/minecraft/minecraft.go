@@ -3,6 +3,7 @@ package minecraft
 import (
 	"embed"
 	"fmt"
+	"strconv"
 
 	"github.com/Zyrakk/zplay/internal/games"
 )
@@ -47,6 +48,35 @@ func (m *Minecraft) Validate(cfg *games.ServerConfig) error {
 			"forge":   "FORGE",
 		}
 		cfg.ServerType = typeMap[cfg.Variant]
+	}
+
+	// Validate Minecraft server.properties fields
+	if cfg.Difficulty != "" {
+		// Terraria uses numeric difficulties "0".."3"; skip validation for those
+		validDifficulties := map[string]bool{
+			"peaceful": true, "easy": true, "normal": true, "hard": true,
+			"0": true, "1": true, "2": true, "3": true,
+		}
+		if !validDifficulties[cfg.Difficulty] {
+			return fmt.Errorf("difficulty must be peaceful, easy, normal, or hard")
+		}
+	}
+	if cfg.Gamemode != "" {
+		validGamemodes := map[string]bool{"survival": true, "creative": true, "adventure": true, "spectator": true}
+		if !validGamemodes[cfg.Gamemode] {
+			return fmt.Errorf("gamemode must be survival, creative, adventure, or spectator")
+		}
+	}
+	if cfg.PvP != "" {
+		if cfg.PvP != "true" && cfg.PvP != "false" {
+			return fmt.Errorf("pvp must be true or false")
+		}
+	}
+	if cfg.ViewDistance != "" {
+		vd, err := strconv.Atoi(cfg.ViewDistance)
+		if err != nil || vd < 2 || vd > 32 {
+			return fmt.Errorf("view distance must be an integer between 2 and 32")
+		}
 	}
 
 	return nil
