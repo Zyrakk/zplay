@@ -127,15 +127,9 @@ func RunUploadWorld(cfg *config.Config, opts UploadWorldOptions) error {
 		return fmt.Errorf("upload pod not ready: %w", err)
 	}
 
-	// Clear existing world and copy new one
+	// Upload world (CopyToPod handles rm + mkdir + compressed tar pipe)
 	targetPath := fmt.Sprintf("/data/%s", targetName)
-	printInfo(fmt.Sprintf("Clearing existing world at %s...", targetPath))
-	if err := client.ExecInPod(namespace, podName, []string{"rm", "-rf", targetPath}); err != nil {
-		client.DeleteJob(namespace, srv.Name+"-upload")
-		return fmt.Errorf("clearing world: %w", err)
-	}
-
-	printInfo("Uploading world...")
+	printInfo(fmt.Sprintf("Uploading world to %s...", targetPath))
 	if err := client.CopyToPod(namespace, podName, worldDir, targetPath); err != nil {
 		client.DeleteJob(namespace, srv.Name+"-upload")
 		return fmt.Errorf("copying world: %w", err)

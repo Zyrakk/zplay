@@ -571,12 +571,42 @@ func (c *Client) ExecNoTTY(namespace, deployment string, command []string) error
 	return cmd.Run()
 }
 
-func (c *Client) CopyToPod(namespace, podName, localPath, remotePath string) error {
-	dest := fmt.Sprintf("%s/%s:%s", namespace, podName, remotePath)
-	cmd := c.kubectl("cp", localPath, dest)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
+// CopyToPod copies a local directory into a pod using a compressed tar pipe
+// through kubectl exec. This avoids the websocket timeout issues that kubectl cp
+// has with large transfers over internet connections (uncompressed tar stream).
+func (c *Client) CopyToPod(namespace, podName, localDir, remoteDir string) error {
+	tarCmd := exec.Command("tar", "czf", "-", "-C", localDir, ".")
+
+	extractScript := fmt.Sprintf("rm -rf '%s' && mkdir -p '%s' && tar xzf - -C '%s'", remoteDir, remoteDir, remoteDir)
+	kubectlCmd := c.kubectl("exec", "-i", podName, "-n", namespace, "--", "sh", "-c", extractScript)
+
+	pipe, err := tarCmd.StdoutPipe()
+	if err != nil {
+		return fmt.Errorf("creating pipe: %w", err)
+	}
+	kubectlCmd.Stdin = pipe
+	kubectlCmd.Stdout = os.Stdout
+	kubectlCmd.Stderr = os.Stderr
+
+	if err := tarCmd.Start(); err != nil {
+		return fmt.Errorf("starting tar: %w", err)
+	}
+	if err := kubectlCmd.Start(); err != nil {
+		tarCmd.Process.Kill()
+		return fmt.Errorf("starting kubectl exec: %w", err)
+	}
+
+	tarErr := tarCmd.Wait()
+	kubectlErr := kubectlCmd.Wait()
+
+	if tarErr != nil {
+		return fmt.Errorf("tar: %w", tarErr)
+	}
+	if kubectlErr != nil {
+		return fmt.Errorf("kubectl exec: %w", kubectlErr)
+	}
+
+	return nil
 }
 
 func (c *Client) ExecInPod(namespace, podName string, command []string) error {
