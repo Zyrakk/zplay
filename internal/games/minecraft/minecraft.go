@@ -156,6 +156,17 @@ func (m *Minecraft) RenderRestoreJob(cfg *games.ServerConfig) (string, error) {
 	return games.RenderSingleTemplate(templates, "templates", "restore-job.yaml", cfg)
 }
 
+func (m *Minecraft) RenderUploadJob(cfg *games.ServerConfig) (string, error) {
+	if cfg.Name == "" {
+		return "", fmt.Errorf("server name is required")
+	}
+
+	cfg.Game = m.Name()
+	games.ApplyInfraDefaults(cfg)
+
+	return games.RenderSingleTemplate(templates, "templates", "upload-job.yaml", cfg)
+}
+
 func (m *Minecraft) GetDeploymentName(serverName string) string {
 	return serverName + "-minecraft"
 }

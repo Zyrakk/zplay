@@ -339,6 +339,35 @@ func TestRenderManifests_ServerPropertiesOmittedWhenEmpty(t *testing.T) {
 	}
 }
 
+func TestRenderUploadJob(t *testing.T) {
+	mc := &Minecraft{}
+	cfg := testConfig()
+
+	manifest, err := mc.RenderUploadJob(cfg)
+	if err != nil {
+		t.Fatalf("RenderUploadJob failed: %v", err)
+	}
+
+	checks := []struct {
+		desc     string
+		contains string
+	}{
+		{"job name", "mctest-upload"},
+		{"namespace", "zplay-mctest"},
+		{"alpine image", "alpine:3.19"},
+		{"sleep infinity", `"sleep", "infinity"`},
+		{"pvc mount", "mctest-pvc"},
+		{"mount path", "/data"},
+		{"ttl", "ttlSecondsAfterFinished: 300"},
+	}
+
+	for _, c := range checks {
+		if !strings.Contains(manifest, c.contains) {
+			t.Errorf("expected upload job to contain %q (%s)", c.contains, c.desc)
+		}
+	}
+}
+
 func TestValidate_MinecraftViewDistance(t *testing.T) {
 	mc := &Minecraft{}
 
