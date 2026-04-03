@@ -571,39 +571,51 @@ func (c *Client) ExecNoTTY(namespace, deployment string, command []string) error
 	return cmd.Run()
 }
 
-// CopyToPod copies a local directory into a pod using a compressed tar pipe
-// through kubectl exec. This avoids the websocket timeout issues that kubectl cp
-// has with large transfers over internet connections (uncompressed tar stream).
+// CopyToPod copies a local directory into a pod using a two-step approach:
+// 1. Compress locally and kubectl cp the archive (fast, small file transfer)
+// 2. kubectl exec to extract in the pod (non-streaming, avoids proxy timeouts)
+//
+// This avoids the ~60s websocket idle timeout on the API proxy that kills
+// both kubectl cp (uncompressed tar) and kubectl exec -i (streaming pipe)
+// when the receiving end blocks on NFS writes during extraction.
 func (c *Client) CopyToPod(namespace, podName, localDir, remoteDir string) error {
-	tarCmd := exec.Command("tar", "czf", "-", "-C", localDir, ".")
-
-	extractScript := fmt.Sprintf("rm -rf '%s' && mkdir -p '%s' && tar xzf - -C '%s'", remoteDir, remoteDir, remoteDir)
-	kubectlCmd := c.kubectl("exec", "-i", podName, "-n", namespace, "--", "sh", "-c", extractScript)
-
-	pipe, err := tarCmd.StdoutPipe()
+	// Step 1: Create compressed archive locally
+	archivePath, err := os.CreateTemp("", "zplay-upload-*.tar.gz")
 	if err != nil {
-		return fmt.Errorf("creating pipe: %w", err)
+		return fmt.Errorf("creating temp file: %w", err)
 	}
-	kubectlCmd.Stdin = pipe
-	kubectlCmd.Stdout = os.Stdout
-	kubectlCmd.Stderr = os.Stderr
+	archivePath.Close()
+	defer os.Remove(archivePath.Name())
 
-	if err := tarCmd.Start(); err != nil {
-		return fmt.Errorf("starting tar: %w", err)
-	}
-	if err := kubectlCmd.Start(); err != nil {
-		tarCmd.Process.Kill()
-		return fmt.Errorf("starting kubectl exec: %w", err)
+	tarCmd := exec.Command("tar", "czf", archivePath.Name(), "-C", localDir, ".")
+	tarCmd.Stderr = os.Stderr
+	if err := tarCmd.Run(); err != nil {
+		return fmt.Errorf("compressing world: %w", err)
 	}
 
-	tarErr := tarCmd.Wait()
-	kubectlErr := kubectlCmd.Wait()
-
-	if tarErr != nil {
-		return fmt.Errorf("tar: %w", tarErr)
+	// Step 2: kubectl cp the compressed archive to the pod
+	dest := fmt.Sprintf("%s/%s:/data/_upload.tar.gz", namespace, podName)
+	cpCmd := c.kubectl("cp", archivePath.Name(), dest)
+	cpCmd.Stdout = os.Stdout
+	cpCmd.Stderr = os.Stderr
+	if err := cpCmd.Run(); err != nil {
+		return fmt.Errorf("copying archive to pod: %w", err)
 	}
-	if kubectlErr != nil {
-		return fmt.Errorf("kubectl exec: %w", kubectlErr)
+
+	// Step 3: Extract in pod (non-streaming exec, no timeout risk)
+	// Extract to temp dir then swap to handle NFS rm quirks
+	extractScript := fmt.Sprintf(
+		"rm -rf /data/_upload_tmp && mkdir -p /data/_upload_tmp && "+
+			"tar xzf /data/_upload.tar.gz -C /data/_upload_tmp && "+
+			"rm -f /data/_upload.tar.gz && "+
+			"rm -rf '%s' 2>/dev/null; "+
+			"mv /data/_upload_tmp '%s'",
+		remoteDir, remoteDir)
+	execCmd := c.kubectl("exec", podName, "-n", namespace, "--", "sh", "-c", extractScript)
+	execCmd.Stdout = os.Stdout
+	execCmd.Stderr = os.Stderr
+	if err := execCmd.Run(); err != nil {
+		return fmt.Errorf("extracting world in pod: %w", err)
 	}
 
 	return nil
