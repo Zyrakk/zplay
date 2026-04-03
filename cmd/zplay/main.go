@@ -48,6 +48,8 @@ func main() {
 		actionErr = runStatusCommand(cfg, os.Args[2:])
 	case "cleanup":
 		actionErr = runCleanupCommand(cfg, os.Args[2:])
+	case "upload-world":
+		actionErr = runUploadWorldCommand(cfg, os.Args[2:])
 	default:
 		printUsage()
 		os.Exit(1)
@@ -285,6 +287,40 @@ func splitNameAndFlags(command string, args []string) (string, []string, error) 
 	return name, flagArgs, nil
 }
 
+func runUploadWorldCommand(cfg *config.Config, args []string) error {
+	uploadCmd := flag.NewFlagSet("upload-world", flag.ContinueOnError)
+	uploadCmd.SetOutput(os.Stderr)
+
+	path := uploadCmd.String("path", "", "Local path to world directory or archive")
+	url := uploadCmd.String("url", "", "URL to download world archive")
+	yes := uploadCmd.Bool("yes", false, "Skip confirmation prompt")
+
+	name, flagArgs, err := splitNameAndFlags("upload-world", args)
+	if err != nil {
+		return err
+	}
+	if err := uploadCmd.Parse(flagArgs); err != nil {
+		return err
+	}
+	if uploadCmd.NArg() != 0 {
+		return fmt.Errorf("unexpected upload-world arguments: %s", strings.Join(uploadCmd.Args(), " "))
+	}
+
+	if *path == "" && *url == "" {
+		return fmt.Errorf("either --path or --url is required")
+	}
+	if *path != "" && *url != "" {
+		return fmt.Errorf("only one of --path or --url can be specified")
+	}
+
+	return cli.RunUploadWorld(cfg, cli.UploadWorldOptions{
+		Name: name,
+		Path: *path,
+		URL:  *url,
+		Yes:  *yes,
+	})
+}
+
 func printUsage() {
 	fmt.Fprintln(os.Stderr, "Usage:")
 	fmt.Fprintln(os.Stderr, "  zplay")
@@ -297,4 +333,6 @@ func printUsage() {
 	fmt.Fprintln(os.Stderr, "  zplay backup <name>")
 	fmt.Fprintln(os.Stderr, "  zplay status <name>")
 	fmt.Fprintln(os.Stderr, "  zplay cleanup [--yes]")
+	fmt.Fprintln(os.Stderr, "  zplay upload-world <name> --path <path> [--yes]")
+	fmt.Fprintln(os.Stderr, "  zplay upload-world <name> --url <url> [--yes]")
 }
