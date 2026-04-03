@@ -37,3 +37,6 @@ Thumbs.db
 # Extra
 tmp/
 AGENTS.md
+
+# Worktrees
+.worktrees/
