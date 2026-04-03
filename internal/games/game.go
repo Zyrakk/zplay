@@ -49,6 +49,13 @@ type ServerConfig struct {
 	Ops          string // comma-separated operator usernames
 	RCONPassword string
 	Mods         []string
+
+	// Minecraft server.properties (mapped to itzg env vars)
+	Gamemode     string
+	Seed         string
+	PvP          string
+	ViewDistance string
+	LevelName    string
 }
 
 // Game interface defines what each game implementation must provide
