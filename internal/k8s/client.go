@@ -571,6 +571,48 @@ func (c *Client) ExecNoTTY(namespace, deployment string, command []string) error
 	return cmd.Run()
 }
 
+func (c *Client) CopyToPod(namespace, podName, localPath, remotePath string) error {
+	dest := fmt.Sprintf("%s/%s:%s", namespace, podName, remotePath)
+	cmd := c.kubectl("cp", localPath, dest)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+func (c *Client) ExecInPod(namespace, podName string, command []string) error {
+	args := []string{"exec", podName, "-n", namespace, "--"}
+	args = append(args, command...)
+	cmd := c.kubectl(args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+func (c *Client) WaitForPodRunning(namespace, labelSelector string, timeoutSeconds int) (string, error) {
+	cmd := c.kubectl("wait", "--for=condition=ready", "pod",
+		"-l", labelSelector,
+		"-n", namespace,
+		fmt.Sprintf("--timeout=%ds", timeoutSeconds))
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("waiting for pod: %w", err)
+	}
+
+	podName, err := c.GetPodName(namespace, labelSelector)
+	if err != nil {
+		return "", fmt.Errorf("getting pod name: %w", err)
+	}
+	return podName, nil
+}
+
+func (c *Client) DeleteJob(namespace, jobName string) error {
+	cmd := c.kubectl("delete", "job", jobName, "-n", namespace, "--ignore-not-found")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
 func (c *Client) SaveWorld(namespace, podName string, timeoutSeconds int) error {
 	if timeoutSeconds <= 0 {
 		timeoutSeconds = 30
