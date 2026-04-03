@@ -59,6 +59,7 @@ type ServerConfig struct {
 
 	// Transient fields (not persisted or templated)
 	WorldSource string // Resolved local path to world directory for upload during deploy
+	JVMMemory   string // Memory in JVM format (e.g., "6G") — derived from Memory field
 }
 
 // Game interface defines what each game implementation must provide

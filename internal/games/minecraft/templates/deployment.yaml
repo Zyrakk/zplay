@@ -77,7 +77,7 @@ spec:
               value: "zplay"
             {{- end}}
             - name: MEMORY
-              value: "{{.Memory}}"
+              value: "{{.JVMMemory}}"
             {{- if .Difficulty}}
             - name: DIFFICULTY
               value: "{{.Difficulty}}"

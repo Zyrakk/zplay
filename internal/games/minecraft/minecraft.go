@@ -4,6 +4,7 @@ import (
 	"embed"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/Zyrakk/zplay/internal/games"
 )
@@ -106,6 +107,9 @@ func (m *Minecraft) RenderManifests(cfg *games.ServerConfig) ([]string, error) {
 	if cfg.ProbeReadinessDelay == 0 {
 		cfg.ProbeReadinessDelay = 60
 	}
+
+	// Convert k8s memory format (4Gi) to JVM format (4G)
+	cfg.JVMMemory = strings.TrimSuffix(cfg.Memory, "i")
 
 	// Infrastructure defaults
 	games.ApplyInfraDefaults(cfg)
