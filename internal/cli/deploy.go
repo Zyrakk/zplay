@@ -128,6 +128,38 @@ func RunDeploy(cfg *config.Config) error {
 		fmt.Print("Operators (comma-separated usernames, optional): ")
 		ops, _ := reader.ReadString('\n')
 		serverCfg.Ops = strings.TrimSpace(ops)
+
+		// Server properties (optional)
+		fmt.Println("\n" + dimStyle.Render("Server properties (all optional, Enter to skip):"))
+
+		fmt.Print("  Difficulty [peaceful/easy/normal/hard]: ")
+		mcDifficulty, _ := reader.ReadString('\n')
+		mcDifficulty = strings.TrimSpace(mcDifficulty)
+		if mcDifficulty != "" {
+			serverCfg.Difficulty = mcDifficulty
+		} else {
+			serverCfg.Difficulty = ""
+		}
+
+		fmt.Print("  Gamemode [survival/creative/adventure/spectator]: ")
+		gamemode, _ := reader.ReadString('\n')
+		serverCfg.Gamemode = strings.TrimSpace(gamemode)
+
+		fmt.Print("  World seed: ")
+		seed, _ := reader.ReadString('\n')
+		serverCfg.Seed = strings.TrimSpace(seed)
+
+		fmt.Print("  PvP [true/false]: ")
+		pvp, _ := reader.ReadString('\n')
+		serverCfg.PvP = strings.TrimSpace(pvp)
+
+		fmt.Print("  View distance [2-32]: ")
+		viewDist, _ := reader.ReadString('\n')
+		serverCfg.ViewDistance = strings.TrimSpace(viewDist)
+
+		fmt.Print("  Level name: ")
+		levelName, _ := reader.ReadString('\n')
+		serverCfg.LevelName = strings.TrimSpace(levelName)
 	}
 
 	// Node selection
@@ -298,8 +330,27 @@ func RunDeploy(cfg *config.Config) error {
 		fmt.Printf("World Size:  %s\n", serverCfg.WorldSize)
 	}
 	if serverCfg.Difficulty != "" {
-		diffNames := map[string]string{"0": "Classic", "1": "Expert", "2": "Master", "3": "Journey"}
-		fmt.Printf("Difficulty:  %s\n", diffNames[serverCfg.Difficulty])
+		if serverCfg.Game == "terraria" {
+			diffNames := map[string]string{"0": "Classic", "1": "Expert", "2": "Master", "3": "Journey"}
+			fmt.Printf("Difficulty:  %s\n", diffNames[serverCfg.Difficulty])
+		} else {
+			fmt.Printf("Difficulty:  %s\n", serverCfg.Difficulty)
+		}
+	}
+	if serverCfg.Gamemode != "" {
+		fmt.Printf("Gamemode:    %s\n", serverCfg.Gamemode)
+	}
+	if serverCfg.Seed != "" {
+		fmt.Printf("Seed:        %s\n", serverCfg.Seed)
+	}
+	if serverCfg.PvP != "" {
+		fmt.Printf("PvP:         %s\n", serverCfg.PvP)
+	}
+	if serverCfg.ViewDistance != "" {
+		fmt.Printf("View Dist:   %s\n", serverCfg.ViewDistance)
+	}
+	if serverCfg.LevelName != "" {
+		fmt.Printf("Level Name:  %s\n", serverCfg.LevelName)
 	}
 	if gameSupportsAutoBackup(game) {
 		if serverCfg.AutoBackup {
